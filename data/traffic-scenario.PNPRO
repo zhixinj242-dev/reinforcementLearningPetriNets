@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- This project file has been saved by the New GreatSPN Editor, v.100 --><project name="traffic-scenario" version="121">
+  <gspn name="PT" show-color-cmd="false" show-fluid-cmd="false" show-timed-cmd="false" view-rates="false">
+    <nodes>
+      <place alt-name-fn="LATEX_TEXT" marking="1" name="RedSN" shown-as="\mathrm{Red}_{sn}" x="7.0" y="7.0"/>
+      <place alt-name-fn="LATEX_TEXT" name="GreenSN" shown-as="\mathrm{Green}_{sn}" x="7.0" y="22.0"/>
+      <place alt-name-fn="LATEX_TEXT" marking="1" name="RedWE" shown-as="\mathrm{Red}_{we}" x="24.0" y="8.0"/>
+      <place alt-name-fn="LATEX_TEXT" name="GreenWE" shown-as="\mathrm{Green}_{we}" x="12.0" y="8.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="RtoGwe" nservers-x="0.5" shown-as="\mathrm{RtoG}_{we}" type="EXP" x="19.55" y="8.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="RtoGsn" nservers-x="0.5" shown-as="\mathrm{RtoG}_{sn}" type="EXP" x="7.55" y="13.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="GtoRsn" nservers-x="0.5" shown-as="\mathrm{GtoR}_{sn}" type="EXP" x="3.55" y="17.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="GtoRwe" nservers-x="0.5" shown-as="\mathrm{GtoRwo}_{we}" type="EXP" x="17.55" y="4.0"/>
+      <place alt-name-fn="LATEX_TEXT" marking="1" name="RedSWNE" shown-as="\mathrm{Red}_{swne}" x="13.0" y="20.0"/>
+      <place alt-name-fn="LATEX_TEXT" name="GreenSWNE" shown-as="\mathrm{Green}_{swne}" x="24.0" y="20.0"/>
+      <place alt-name-fn="LATEX_TEXT" name="GreenWNES" shown-as="\mathrm{Green}_{wnes}" x="30.0" y="7.0"/>
+      <place alt-name-fn="LATEX_TEXT" marking="1" name="RedWNES" shown-as="\mathrm{Red}_{wnes}" x="30.0" y="22.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="RtoGwnes" nservers-x="0.5" shown-as="\mathrm{RtoG}_{wnes}" type="EXP" x="30.55" y="17.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="GtoRwnes" nservers-x="0.5" shown-as="\mathrm{GtoR}_{wnes}" type="EXP" x="35.55" y="13.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="RtoGswne" nservers-x="0.5" shown-as="\mathrm{RtoG}_{swne}" type="EXP" x="17.55" y="20.0"/>
+      <transition alt-name-fn="LATEX_TEXT" name="GtoRswne" nservers-x="0.5" shown-as="\mathrm{GtoR}_{swne}" type="EXP" x="19.55" y="25.0"/>
+      <place alt-name-fn="LATEX_TEXT" marking="1" name="Save" shown-as="\mathrm{Save}" x="18.0" y="15.0"/>
+    </nodes>
+    <edges>
+      <arc head="RtoGwe" kind="INPUT" tail="RedWE"/>
+      <arc head="GreenWE" kind="OUTPUT" tail="RtoGwe"/>
+      <arc head="RtoGsn" kind="INPUT" tail="RedSN"/>
+      <arc head="GreenSN" kind="OUTPUT" tail="RtoGsn"/>
+      <arc head="GtoRwe" kind="INPUT" tail="GreenWE"/>
+      <arc head="RedWE" kind="OUTPUT" tail="GtoRwe"/>
+      <arc head="GtoRsn" kind="INPUT" tail="GreenSN"/>
+      <arc head="RedSN" kind="OUTPUT" tail="GtoRsn"/>
+      <arc head="GreenSWNE" kind="OUTPUT" tail="RtoGswne"/>
+      <arc head="RtoGswne" kind="INPUT" tail="RedSWNE"/>
+      <arc head="GtoRswne" kind="INPUT" tail="GreenSWNE"/>
+      <arc head="RedSWNE" kind="OUTPUT" tail="GtoRswne"/>
+      <arc head="GtoRwnes" kind="INPUT" tail="GreenWNES"/>
+      <arc head="RedWNES" kind="OUTPUT" tail="GtoRwnes"/>
+      <arc head="RtoGwnes" kind="INPUT" tail="RedWNES"/>
+      <arc head="GreenWNES" kind="OUTPUT" tail="RtoGwnes"/>
+      <arc head="RtoGswne" kind="INPUT" tail="Save"/>
+      <arc head="RtoGwnes" kind="INPUT" tail="Save"/>
+      <arc head="RtoGwe" kind="INPUT" tail="Save"/>
+      <arc head="RtoGsn" kind="INPUT" tail="Save"/>
+      <arc head="Save" kind="OUTPUT" tail="GtoRswne"/>
+      <arc head="Save" kind="OUTPUT" tail="GtoRsn"/>
+      <arc head="Save" kind="OUTPUT" tail="GtoRwe"/>
+      <arc head="Save" kind="OUTPUT" tail="GtoRwnes"/>
+    </edges>
+  </gspn>
+</project>
