@@ -1,1 +1,1 @@
-from .petri_net import PetriNetEnv
+from .petri_net import JunctionPetriNetEnv
