@@ -13,8 +13,7 @@ def main():
     for i in range(12):
         observation, reward, terminated, _ = env.step(random.randint(0, 8))
 
-        print(env.flatten_observation(observation))
-        # print(observation)
+        print(reward)
 
 
 if __name__ == '__main__':

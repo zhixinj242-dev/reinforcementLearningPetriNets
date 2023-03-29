@@ -16,12 +16,15 @@ class LanePetriNetTuple(object):
 class JunctionPetriNetEnv(gym.Env):
 
     def __init__(self, net=None, max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
-                 lanes: [LanePetriNetTuple] = None) -> None:
+                 lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
+                 success_car_drive_reward: float = 5.0) -> None:
         super().__init__()
 
         self._net_backup = net.copy()
         self.net = net
         self.max_number_cars_per_lane = max_num_cars_per_lane
+        self.success_action_reward = success_action_reward
+        self.success_car_drive_reward = success_car_drive_reward
 
         assert lanes is None or len(lanes.keys()) == 8
         if lanes is None:
@@ -77,9 +80,10 @@ class JunctionPetriNetEnv(gym.Env):
 
     # 1 step is 3 sec (1 car per step and lane)
     def step(self, action) -> ({}, float, bool, {}):
-        succeded = self._do_action(action)
+        success = self._do_action(action)
+        cars_driven = self._do_driving()
+        reward = self._calculate_reward(success, cars_driven)
         observation = self._get_obs()
-        reward = 0
         terminated = self._terminated()
         info = self._info()
 
@@ -101,6 +105,11 @@ class JunctionPetriNetEnv(gym.Env):
     def flatten_observation(self, observation):
         return gym.spaces.flatten(self.observation_space, observation)
 
+    def _calculate_reward(self, success, cars_driven) -> float:
+        reward = self.success_action_reward if success else 0
+        reward += cars_driven * self.success_car_drive_reward
+        return reward
+
     def _do_action(self, action) -> bool:
         action = self.actions_to_transitions[action]
         if action in [t.name for t in self.net.transition()]:
@@ -116,6 +125,9 @@ class JunctionPetriNetEnv(gym.Env):
             return False
 
         return True
+
+    def _do_driving(self) -> int:
+        return 0
 
     def _get_obs(self) -> {}:
         net_dict = {}
