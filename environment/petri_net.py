@@ -146,8 +146,13 @@ class JunctionPetriNetEnv(gym.Env):
     def close(self) -> None:
         pass
 
-    def flatten_observation(self, observation):
-        return gym.spaces.flatten(self.observation_space, observation)
+    @staticmethod
+    def flatten_observation(observation):
+        flattened_obs = []
+        for k in observation.keys():
+            for k2 in observation[k].keys():
+                flattened_obs.append(observation[k][k2])
+        return flattened_obs
 
     def _calculate_reward(self, success, cars_driven) -> float:
         reward = self.success_action_reward if success else 0
