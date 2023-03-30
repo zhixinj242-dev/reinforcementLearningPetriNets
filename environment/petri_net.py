@@ -1,16 +1,60 @@
+import random
+
 import gymnasium as gym
 import numpy as np
 
 
+class Vehicle(object):
+    def __init__(self):
+        self.time_steps = 0
+
+    def increase_time(self):
+        self.time_steps = self.time_steps + 1
+
+
 class LanePetriNetTuple(object):
-    def __init__(self, lane: str, place: str, probability: float = 1.0/8.0):
+    def __init__(self, lane: str, place: str, probability: float = 1.0/8.0, min_cars_pc: int = 0,
+                 max_cars_pc: int = 1, car_driving_speed: int = 4):
         self.name = lane
         self.place = place
         self.probability = probability
-        self.num_vehicles = 0
+        self.min_cars_pc = min_cars_pc
+        self.max_cars_pc = max_cars_pc
+        self.car_driving_speed = car_driving_speed
+
+        self.vehicles = []
 
     def reset(self):
-        self.num_vehicles = 0
+        self.vehicles = []
+
+    def add_vehicles(self):
+        num_cars = random.randint(self.min_cars_pc, self.max_cars_pc)
+        for i in range(num_cars):
+            self.vehicles.append(Vehicle())
+
+    def increase_time(self):
+        for i in range(len(self.vehicles)):
+            self.vehicles[i].increase_time()
+
+    def drive_vehicles(self) -> int:
+        num_cars_drivable = len(self.vehicles)
+        if num_cars_drivable < self.car_driving_speed:
+            self.vehicles = []
+            return num_cars_drivable
+        else:
+            vehicles = len(self.vehicles)
+            for car_num in range(self.car_driving_speed):
+                self.vehicles.remove(self._get_longest_waiting_vehicle())
+            return vehicles - len(self.vehicles)
+
+    def _get_longest_waiting_vehicle(self):
+        if len(self.vehicles) == 0:
+            return None
+        max_vehicle = self.vehicles[0]
+        for i in range(len(self.vehicles)):
+            if self.vehicles[i].time_steps > max_vehicle.time_steps:
+                max_vehicle = self.vehicles[i]
+        return max_vehicle
 
 
 class JunctionPetriNetEnv(gym.Env):
@@ -41,15 +85,15 @@ class JunctionPetriNetEnv(gym.Env):
         else:
             self.lanes = lanes
 
-        print("Places:")
-        for p in self.net.place():
-            print("\tname: {}, tokens: {}".format(p.name, len(p.tokens.items())))
-        print("Transitions:")
-        for t in self.net.transition():
-            print("\t{}".format(t.name))
-
-        print("Marking:")
-        print(self.net.get_marking())
+        # print("Places:")
+        # for p in self.net.place():
+        #     print("\tname: {}, tokens: {}".format(p.name, len(p.tokens.items())))
+        # print("Transitions:")
+        # for t in self.net.transition():
+        #     print("\t{}".format(t.name))
+        #
+        # print("Marking:")
+        # print(self.net.get_marking())
 
         # actions are all possible net transitions [RtoGwe, RtoGsn, ... (tue nichts state)]
         self.action_space = gym.spaces.Discrete(len(self.net.transition()) + 1)
@@ -78,7 +122,7 @@ class JunctionPetriNetEnv(gym.Env):
             'vehicle_obs': gym.spaces.Dict(vehicle_obs_dict),
         })
 
-    # 1 step is 3 sec (1 car per step and lane)
+    # 1 step is 12 sec (4 car per step and lane)
     def step(self, action) -> ({}, float, bool, {}):
         success = self._do_action(action)
         cars_driven = self._do_driving()
@@ -127,7 +171,16 @@ class JunctionPetriNetEnv(gym.Env):
         return True
 
     def _do_driving(self) -> int:
-        return 0
+        active_places = self._active_places()
+        vehicles_driven = 0
+        for i in range(len(self.lanes)):
+            if self.lanes[i].place in active_places:
+                vehicles_driven = vehicles_driven + self.lanes[i].drive_vehicles()
+                print("{}: {}".format(self.lanes[i].place, vehicles_driven))
+
+            self.lanes[i].add_vehicles()
+
+        return vehicles_driven
 
     def _get_obs(self) -> {}:
         net_dict = {}
@@ -135,19 +188,26 @@ class JunctionPetriNetEnv(gym.Env):
             net_dict[place.name] = len(place.tokens)
         lane_dict = {}
         for lane in self.lanes:
-            lane_dict[lane.name] = lane.num_vehicles
+            lane_dict[lane.name] = len(lane.vehicles)
 
         return {
             'net': net_dict,
             'vehicle_obs': lane_dict
         }
 
+    def _active_places(self):
+        active_places = []
+        for place in self.net.place():
+            if len(place.tokens.items()) > 0:
+                active_places.append(place.name)
+        return active_places
+
     def _info(self) -> {}:
         return self._get_obs()
 
     def _terminated(self) -> bool:
         # cars exceeded maximum number of waiting cars
-        cars_exceeded = [lane.num_vehicles >= self.max_number_cars_per_lane for lane in self.lanes]
+        cars_exceeded = [len(lane.vehicles) >= self.max_number_cars_per_lane for lane in self.lanes]
 
         # max execution rounds reached
 
