@@ -61,7 +61,7 @@ class JunctionPetriNetEnv(gym.Env):
 
     def __init__(self, net=None, max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
-                 success_car_drive_reward: float = 5.0) -> None:
+                 success_car_drive_reward: float = 5.0, max_steps: int = 100) -> None:
         super().__init__()
 
         self._net_backup = net.copy()
@@ -69,6 +69,8 @@ class JunctionPetriNetEnv(gym.Env):
         self.max_number_cars_per_lane = max_num_cars_per_lane
         self.success_action_reward = success_action_reward
         self.success_car_drive_reward = success_car_drive_reward
+        self.steps = 0
+        self.max_steps = max_steps
 
         assert lanes is None or len(lanes.keys()) == 8
         if lanes is None:
@@ -124,6 +126,7 @@ class JunctionPetriNetEnv(gym.Env):
 
     # 1 step is 12 sec (4 car per step and lane)
     def step(self, action) -> ({}, float, bool, {}):
+        self.steps = self.steps + 1
         success = self._do_action(action)
         cars_driven = self._do_driving()
         reward = self._calculate_reward(success, cars_driven)
@@ -139,6 +142,7 @@ class JunctionPetriNetEnv(gym.Env):
         self.net = self._net_backup.copy()
         for lane in self.lanes:
             lane.reset()
+        self.steps = 0
 
     def render(self) -> None:
         pass
@@ -156,7 +160,7 @@ class JunctionPetriNetEnv(gym.Env):
 
     def _calculate_reward(self, success, cars_driven) -> float:
         reward = self.success_action_reward if success else 0
-        reward += cars_driven * self.success_car_drive_reward
+        reward = reward + cars_driven * self.success_car_drive_reward
         return reward
 
     def _do_action(self, action) -> bool:
@@ -181,7 +185,6 @@ class JunctionPetriNetEnv(gym.Env):
         for i in range(len(self.lanes)):
             if self.lanes[i].place in active_places:
                 vehicles_driven = vehicles_driven + self.lanes[i].drive_vehicles()
-                print("{}: {}".format(self.lanes[i].place, vehicles_driven))
 
             self.lanes[i].add_vehicles()
 
@@ -216,4 +219,4 @@ class JunctionPetriNetEnv(gym.Env):
 
         # max execution rounds reached
 
-        return np.any(cars_exceeded)
+        return np.any(cars_exceeded) or self.max_steps <= self.steps
