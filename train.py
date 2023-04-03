@@ -1,5 +1,6 @@
 from environment import JunctionPetriNetEnv
-from utils.petri_net import get_petri_net, Parser
+from agents import QLearningAgent
+from utils import get_petri_net, Parser
 import random
 
 
@@ -9,11 +10,17 @@ def main():
 
     print("Action space: {}".format(env.action_space))
     print("Observation space: {}".format(env.observation_space))
+    T = 1000 #total timesteps T
 
-    for i in range(100):
-        observation, reward, terminated, _ = env.step(random.randint(0, 8))
+    agent = QLearningAgent(env, T)
+    obs = env.reset()
 
+    for i in range(T):
+        action, _states = agent.get_action(obs)
+        obs, reward, terminated, _ = env.step(action)
         print(reward)
+        if terminated:
+            obs = env.reset()
 
 
 if __name__ == '__main__':

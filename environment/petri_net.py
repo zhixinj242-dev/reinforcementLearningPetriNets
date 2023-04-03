@@ -128,17 +128,19 @@ class JunctionPetriNetEnv(gym.Env):
         cars_driven = self._do_driving()
         reward = self._calculate_reward(success, cars_driven)
         observation = self._get_obs()
+        observation = self.flatten_observation(observation)
         terminated = self._terminated()
         info = self._info()
 
         return observation, reward, terminated, info
 
-    def reset(self, seed) -> None:
+    def reset(self, seed) -> {}:
         super().reset(seed=seed)
 
         self.net = self._net_backup.copy()
         for lane in self.lanes:
             lane.reset()
+        return self.flatten_observation(self._get_obs())
 
     def render(self) -> None:
         pass
