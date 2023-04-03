@@ -13,14 +13,11 @@ class Vehicle(object):
 
 
 class LanePetriNetTuple(object):
-    def __init__(self, lane: str, place: str, probability: float = 1.0/8.0, min_cars_pc: int = 0,
-                 max_cars_pc: int = 1, car_driving_speed: int = 4):
+    def __init__(self, lane: str, place: str, poisson_mu_arriving: int = 2, poisson_mu_departing: int = 4):
         self.name = lane
         self.place = place
-        self.probability = probability
-        self.min_cars_pc = min_cars_pc
-        self.max_cars_pc = max_cars_pc
-        self.car_driving_speed = car_driving_speed
+        self.arriving_mu = poisson_mu_arriving
+        self.departing_mu = poisson_mu_departing
 
         self.vehicles = []
 
@@ -28,7 +25,7 @@ class LanePetriNetTuple(object):
         self.vehicles = []
 
     def add_vehicles(self):
-        num_cars = random.randint(self.min_cars_pc, self.max_cars_pc)
+        num_cars = np.random.poisson(self.arriving_mu)
         for i in range(num_cars):
             self.vehicles.append(Vehicle())
 
@@ -38,12 +35,13 @@ class LanePetriNetTuple(object):
 
     def drive_vehicles(self) -> int:
         num_cars_drivable = len(self.vehicles)
-        if num_cars_drivable < self.car_driving_speed:
+        cars_driving = np.random.poisson(self.departing_mu)
+        if num_cars_drivable < cars_driving:
             self.vehicles = []
             return num_cars_drivable
         else:
             vehicles = len(self.vehicles)
-            for car_num in range(self.car_driving_speed):
+            for car_num in range(cars_driving):
                 self.vehicles.remove(self._get_longest_waiting_vehicle())
             return vehicles - len(self.vehicles)
 
@@ -171,7 +169,7 @@ class JunctionPetriNetEnv(gym.Env):
             else:
                 # petri net constrains limit the action space
                 return False
-        elif action is "None":
+        elif action == "None":
             return True
         else:
             print("Undefined action space. Cannot be chosen.")

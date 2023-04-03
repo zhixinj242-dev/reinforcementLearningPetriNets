@@ -10,7 +10,7 @@ def main():
     print("Action space: {}".format(env.action_space))
     print("Observation space: {}".format(env.observation_space))
 
-    for i in range(110):
+    for i in range(200):
         observation, reward, terminated, _ = env.step(random.randint(0, 8))
 
         print("{}, {}, {}".format(terminated, reward, observation))
