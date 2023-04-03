@@ -190,7 +190,7 @@ class JunctionPetriNetEnv(gym.Env):
 
         return vehicles_driven
 
-    def _get_obs(self) -> {}:
+    def _get_obs(self):
         net_dict = {}
         for place in self.net.place():
             net_dict[place.name] = len(place.tokens)
