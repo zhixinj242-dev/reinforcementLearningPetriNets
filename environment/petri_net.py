@@ -1,5 +1,3 @@
-import random
-
 import gymnasium as gym
 import numpy as np
 
@@ -13,14 +11,11 @@ class Vehicle(object):
 
 
 class LanePetriNetTuple(object):
-    def __init__(self, lane: str, place: str, probability: float = 1.0/8.0, min_cars_pc: int = 0,
-                 max_cars_pc: int = 1, car_driving_speed: int = 4):
+    def __init__(self, lane: str, place: str, poisson_mu_arriving: int = 2, poisson_mu_departing: int = 4):
         self.name = lane
         self.place = place
-        self.probability = probability
-        self.min_cars_pc = min_cars_pc
-        self.max_cars_pc = max_cars_pc
-        self.car_driving_speed = car_driving_speed
+        self.arriving_mu = poisson_mu_arriving
+        self.departing_mu = poisson_mu_departing
 
         self.vehicles = []
 
@@ -28,7 +23,7 @@ class LanePetriNetTuple(object):
         self.vehicles = []
 
     def add_vehicles(self):
-        num_cars = random.randint(self.min_cars_pc, self.max_cars_pc)
+        num_cars = np.random.poisson(self.arriving_mu)
         for i in range(num_cars):
             self.vehicles.append(Vehicle())
 
@@ -38,12 +33,13 @@ class LanePetriNetTuple(object):
 
     def drive_vehicles(self) -> int:
         num_cars_drivable = len(self.vehicles)
-        if num_cars_drivable < self.car_driving_speed:
+        cars_driving = np.random.poisson(self.departing_mu)
+        if num_cars_drivable < cars_driving:
             self.vehicles = []
             return num_cars_drivable
         else:
             vehicles = len(self.vehicles)
-            for car_num in range(self.car_driving_speed):
+            for car_num in range(cars_driving):
                 self.vehicles.remove(self._get_longest_waiting_vehicle())
             return vehicles - len(self.vehicles)
 
@@ -61,7 +57,7 @@ class JunctionPetriNetEnv(gym.Env):
 
     def __init__(self, net=None, max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
-                 success_car_drive_reward: float = 5.0) -> None:
+                 success_car_drive_reward: float = 5.0, max_steps: int = 100) -> None:
         super().__init__()
 
         self._net_backup = net.copy()
@@ -69,6 +65,8 @@ class JunctionPetriNetEnv(gym.Env):
         self.max_number_cars_per_lane = max_num_cars_per_lane
         self.success_action_reward = success_action_reward
         self.success_car_drive_reward = success_car_drive_reward
+        self.steps = 0
+        self.max_steps = max_steps
 
         assert lanes is None or len(lanes.keys()) == 8
         if lanes is None:
@@ -124,6 +122,7 @@ class JunctionPetriNetEnv(gym.Env):
 
     # 1 step is 12 sec (4 car per step and lane)
     def step(self, action) -> ({}, float, bool, {}):
+        self.steps = self.steps + 1
         success = self._do_action(action)
         cars_driven = self._do_driving()
         reward = self._calculate_reward(success, cars_driven)
@@ -134,13 +133,14 @@ class JunctionPetriNetEnv(gym.Env):
 
         return observation, reward, terminated, info
 
-    def reset(self, seed) -> {}:
+
+    def reset(self, seed: int = None) -> None:
         super().reset(seed=seed)
 
         self.net = self._net_backup.copy()
         for lane in self.lanes:
             lane.reset()
-        return self.flatten_observation(self._get_obs())
+        self.steps = 0
 
     def render(self) -> None:
         pass
@@ -158,7 +158,7 @@ class JunctionPetriNetEnv(gym.Env):
 
     def _calculate_reward(self, success, cars_driven) -> float:
         reward = self.success_action_reward if success else 0
-        reward += cars_driven * self.success_car_drive_reward
+        reward = reward + cars_driven * self.success_car_drive_reward
         return reward
 
     def _do_action(self, action) -> bool:
@@ -169,7 +169,7 @@ class JunctionPetriNetEnv(gym.Env):
             else:
                 # petri net constrains limit the action space
                 return False
-        elif action is "None":
+        elif action == "None":
             return True
         else:
             print("Undefined action space. Cannot be chosen.")
@@ -183,13 +183,12 @@ class JunctionPetriNetEnv(gym.Env):
         for i in range(len(self.lanes)):
             if self.lanes[i].place in active_places:
                 vehicles_driven = vehicles_driven + self.lanes[i].drive_vehicles()
-                print("{}: {}".format(self.lanes[i].place, vehicles_driven))
 
             self.lanes[i].add_vehicles()
 
         return vehicles_driven
 
-    def _get_obs(self) -> {}:
+    def _get_obs(self):
         net_dict = {}
         for place in self.net.place():
             net_dict[place.name] = len(place.tokens)
@@ -218,4 +217,4 @@ class JunctionPetriNetEnv(gym.Env):
 
         # max execution rounds reached
 
-        return np.any(cars_exceeded)
+        return np.any(cars_exceeded) or self.max_steps <= self.steps
