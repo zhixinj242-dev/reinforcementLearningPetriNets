@@ -15,9 +15,9 @@ class PetriNetEnvArray(JunctionPetriNetEnv):
         vector_dimensionality = []
         for dict in self.observation_space:
             for key in self.observation_space[dict]:
-                vector_dimensionality.append(self.observation_space[dict][key].n)
+                vector_dimensionality.append(gym.spaces.Discrete(self.observation_space[dict][key].n))
 
-        self.observation_space = gym.spaces.MultiDiscrete(vector_dimensionality)
+        self.observation_space = gym.spaces.Tuple(vector_dimensionality)
 
     def _get_obs(self):
         obs = []
