@@ -1,5 +1,3 @@
-import random
-
 import gymnasium as gym
 import numpy as np
 
@@ -134,7 +132,7 @@ class JunctionPetriNetEnv(gym.Env):
 
         return observation, reward, terminated, info
 
-    def reset(self, seed) -> None:
+    def reset(self, seed: int = None) -> None:
         super().reset(seed=seed)
 
         self.net = self._net_backup.copy()
