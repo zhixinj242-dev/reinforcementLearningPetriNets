@@ -188,10 +188,10 @@ class JunctionPetriNetEnv(gym.Env):
     def _get_obs(self):
         obs = {}
         for place in self.net.place():
-            obs["net-{}".format(place.name)] = len(place.tokens)
+            obs["net-{}".format(place.name)] = np.array([len(place.tokens)])
         lane_dict = {}
         for lane in self.lanes:
-            obs["vehicle_obs-{}".format(lane.name)] = len(lane.vehicles)
+            obs["vehicle_obs-{}".format(lane.name)] = np.array([len(lane.vehicles)])
 
         return obs
 
