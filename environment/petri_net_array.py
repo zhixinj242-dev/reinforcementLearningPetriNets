@@ -1,4 +1,5 @@
 import gym.spaces
+import numpy as np
 
 from .petri_net import JunctionPetriNetEnv, LanePetriNetTuple
 
@@ -12,18 +13,20 @@ class PetriNetEnvArray(JunctionPetriNetEnv):
                          lanes=lanes, success_action_reward=success_action_reward,
                          success_car_drive_reward=success_car_drive_reward, max_steps=max_steps)
 
-        vector_dimensionality = []
-        for dict in self.observation_space:
-            for key in self.observation_space[dict]:
-                vector_dimensionality.append(gym.spaces.Discrete(self.observation_space[dict][key].n))
-
-        self.observation_space = gym.spaces.Tuple(vector_dimensionality)
+        lower_bound = np.zeros(len(self.observation_space.keys()), dtype=np.float32)
+        upper_bound = np.zeros(len(self.observation_space.keys()), dtype=np.float32)
+        for idx, dict in enumerate(self.observation_space):
+            upper_bound[idx] = self.observation_space[dict].high
+        self.observation_space = gym.spaces.Box(low=lower_bound, high=upper_bound, shape=lower_bound.shape, dtype=np.float32)
 
     def _get_obs(self):
-        obs = []
+        obs = np.zeros(self.observation_space.shape)
+        idx = 0
         for place in self.net.place():
-            obs.append(len(place.tokens))
+            obs[idx] = len(place.tokens)
+            idx = idx + 1
         for lane in self.lanes:
-            obs.append(len(lane.vehicles))
+            obs[idx] = len(lane.vehicles)
+            idx = idx + 1
 
         return obs

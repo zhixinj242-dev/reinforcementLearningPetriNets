@@ -1,5 +1,6 @@
 gymnasium
-numpy
-beautifulsoup4
+numpy~=1.24.2
+beautifulsoup4~=4.12.0
 lxml
-snakes
+snakes~=0.9.30
+skrl

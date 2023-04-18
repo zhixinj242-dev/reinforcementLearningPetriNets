@@ -1,38 +1,32 @@
-<<<<<<< HEAD
-from environment import JunctionPetriNetEnv
-from agents import QLearningAgent
-from utils import get_petri_net, Parser
-=======
+from skrl.agents.torch.dqn import DQN_DEFAULT_CONFIG
+from skrl.envs.torch import wrap_env
+from skrl.memories.torch import RandomMemory
+from skrl.trainers.torch import SequentialTrainer
+
+from agents.dqn import get_dqn_model
 from environment import PetriNetEnvArray
 from utils.petri_net import get_petri_net, Parser
->>>>>>> b30d46ef95d43d30eb166accd991bd088c5bc1cb
-import random
 
 
 def main():
-    print('Starting training...')
     env = PetriNetEnvArray(net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO))
+    env.reset()
+    env = wrap_env(env, wrapper="gymnasium")
+    device = env.device
+    memory = RandomMemory(memory_size=100000, num_envs=env.num_envs)
 
-    print("Action space: {}".format(env.action_space))
-    print("Observation space: {}".format(env.observation_space))
-    T = 1000 #total timesteps T
+    cfg = DQN_DEFAULT_CONFIG.copy()
 
-<<<<<<< HEAD
-    agent = QLearningAgent(env, T)
-    obs = env.reset()
+    dqn_agent = get_dqn_model(env=env, device=device, memory=memory, cfg=cfg)
 
-    for i in range(T):
-        action, _states = agent.get_action(obs)
-        obs, reward, terminated, _ = env.step(action)
-        print(reward)
-        if terminated:
-            obs = env.reset()
-=======
-    for i in range(200):
-        observation, reward, terminated, _ = env.step(random.randint(0, 8))
+    cfg_trainer = {
+        "timesteps": 300000,
+        "headless": True
+    }
+    trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=dqn_agent)
 
-        print("{}, {}, {}".format(terminated, reward, observation))
->>>>>>> b30d46ef95d43d30eb166accd991bd088c5bc1cb
+    trainer.train()
+    trainer.eval()
 
 
 if __name__ == '__main__':

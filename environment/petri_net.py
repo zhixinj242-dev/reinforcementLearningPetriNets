@@ -107,32 +107,28 @@ class JunctionPetriNetEnv(gym.Env):
         #       '0': Discrete(100),
         #       ...
         # }
-        net_dict = {}
-        vehicle_obs_dict = {}
+        observation_dict = {}
         for place in self.net.place():
-            net_dict[place.name] = gym.spaces.Discrete(max_num_tokens + 1)
+            observation_dict["net-{}".format(place.name)] = gym.spaces.Box(low=0.0, high=float(max_num_tokens), dtype=np.float64)
 
         for lane in self.lanes:
-            vehicle_obs_dict["{}".format(lane.name)] = gym.spaces.Discrete(max_num_cars_per_lane)
+            observation_dict["vehicle_obs-{}".format(lane.name)] = gym.spaces.Box(low=0.0, high=float(max_num_cars_per_lane),
+                                                                                  dtype=np.float64)
 
-        self.observation_space = gym.spaces.Dict({
-            'net': gym.spaces.Dict(net_dict),
-            'vehicle_obs': gym.spaces.Dict(vehicle_obs_dict),
-        })
+        self.observation_space = gym.spaces.Dict(observation_dict)
 
     # 1 step is 12 sec (4 car per step and lane)
-    def step(self, action) -> ({}, float, bool, {}):
+    def step(self, action) -> ({}, float, bool, {}, {}):
         self.steps = self.steps + 1
         success = self._do_action(action)
         cars_driven = self._do_driving()
         reward = self._calculate_reward(success, cars_driven)
         observation = self._get_obs()
-        observation = self.flatten_observation(observation)
         terminated = self._terminated()
+        truncated = False
         info = self._info()
 
-        return observation, reward, terminated, info
-
+        return observation, reward, terminated, truncated, info
 
     def reset(self, seed: int = None) -> None:
         super().reset(seed=seed)
@@ -141,6 +137,8 @@ class JunctionPetriNetEnv(gym.Env):
         for lane in self.lanes:
             lane.reset()
         self.steps = 0
+
+        return self._get_obs(), self._get_obs()
 
     def render(self) -> None:
         pass
@@ -152,8 +150,7 @@ class JunctionPetriNetEnv(gym.Env):
     def flatten_observation(observation):
         flattened_obs = []
         for k in observation.keys():
-            for k2 in observation[k].keys():
-                flattened_obs.append(observation[k][k2])
+            flattened_obs.append(observation[k])
         return flattened_obs
 
     def _calculate_reward(self, success, cars_driven) -> float:
@@ -189,17 +186,14 @@ class JunctionPetriNetEnv(gym.Env):
         return vehicles_driven
 
     def _get_obs(self):
-        net_dict = {}
+        obs = {}
         for place in self.net.place():
-            net_dict[place.name] = len(place.tokens)
+            obs["net-{}".format(place.name)] = len(place.tokens)
         lane_dict = {}
         for lane in self.lanes:
-            lane_dict[lane.name] = len(lane.vehicles)
+            obs["vehicle_obs-{}".format(lane.name)] = len(lane.vehicles)
 
-        return {
-            'net': net_dict,
-            'vehicle_obs': lane_dict
-        }
+        return obs
 
     def _active_places(self):
         active_places = []
