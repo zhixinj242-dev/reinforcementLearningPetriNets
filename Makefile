@@ -14,3 +14,6 @@ test:
 	@echo "********** Testing **********"
 	@echo "In developing process"
 
+tensorboard:
+    @echo "******* Tensorboard *********"
+    tensorboard --logdir=runs
