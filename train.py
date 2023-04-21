@@ -4,12 +4,12 @@ from skrl.memories.torch import RandomMemory
 from skrl.trainers.torch import SequentialTrainer
 
 from agents.dqn import get_dqn_model
-from environment import PetriNetEnvArray
+from environment import JunctionPetriNetEnv
 from utils.petri_net import get_petri_net, Parser
 
 
 def main():
-    env = PetriNetEnvArray(net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO))
+    env = JunctionPetriNetEnv(net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO))
     env.reset()
     env = wrap_env(env, wrapper="gymnasium")
     device = env.device
@@ -20,7 +20,7 @@ def main():
     dqn_agent = get_dqn_model(env=env, device=device, memory=memory, cfg=cfg)
 
     cfg_trainer = {
-        "timesteps": 300000,
+        "timesteps": 600000,
         "headless": True
     }
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=dqn_agent)

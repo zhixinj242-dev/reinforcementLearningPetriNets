@@ -1,5 +1,8 @@
+import json
+
 import gymnasium as gym
 import numpy as np
+import time
 
 
 class Vehicle(object):
@@ -11,7 +14,7 @@ class Vehicle(object):
 
 
 class LanePetriNetTuple(object):
-    def __init__(self, lane: str, place: str, poisson_mu_arriving: int = 2, poisson_mu_departing: int = 4):
+    def __init__(self, lane: str, place: str, poisson_mu_arriving: int = 1, poisson_mu_departing: int = 8):
         self.name = lane
         self.place = place
         self.arriving_mu = poisson_mu_arriving
@@ -54,8 +57,10 @@ class LanePetriNetTuple(object):
 
 
 class JunctionPetriNetEnv(gym.Env):
+    metadata = {"render_modes": ["human", "file"], "render_fps": 4}
 
-    def __init__(self, net=None, max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
+    def __init__(self, render_mode=None, net=None, reward_function = None,
+                 max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
                  success_car_drive_reward: float = 5.0, max_steps: int = 100) -> None:
         super().__init__()
@@ -67,6 +72,11 @@ class JunctionPetriNetEnv(gym.Env):
         self.success_car_drive_reward = success_car_drive_reward
         self.steps = 0
         self.max_steps = max_steps
+        self.reward_function = reward_function
+
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
+        self.output = []
 
         assert lanes is None or len(lanes.keys()) == 8
         if lanes is None:
@@ -120,10 +130,14 @@ class JunctionPetriNetEnv(gym.Env):
     # 1 step is 12 sec (4 car per step and lane)
     def step(self, action) -> ({}, float, bool, {}, {}):
         self.steps = self.steps + 1
+        previous_obs = self._get_obs()
         success = self._do_action(action)
         cars_driven = self._do_driving()
-        reward = self._calculate_reward(success, cars_driven)
         observation = self._get_obs()
+        if self.reward_function:
+            reward = self.reward_function(previous_obs, observation, success)
+        else:
+            reward = self._calculate_reward(previous_obs, observation, success)
         terminated = self._terminated()
         truncated = False
         info = self._info()
@@ -141,10 +155,16 @@ class JunctionPetriNetEnv(gym.Env):
         return self._get_obs(), self._get_obs()
 
     def render(self) -> None:
-        pass
+        if self.render_mode == "human":
+            print("t-{}, obs: {}".format(self.steps, self._get_obs()))
+        if self.render_mode == "file":
+            self.output.append("t-{}, obs: {}".format(self.steps, self._get_obs()))
 
     def close(self) -> None:
-        pass
+        if self.render_mode == "file":
+            timestr = time.strftime("%Y%m%d-%H%M%S")
+            with open("{}-output.txt".format(timestr), 'w') as filehandle:
+                json.dump(self.output, filehandle)
 
     @staticmethod
     def flatten_observation(observation):
@@ -153,9 +173,12 @@ class JunctionPetriNetEnv(gym.Env):
             flattened_obs.append(observation[k])
         return flattened_obs
 
-    def _calculate_reward(self, success, cars_driven) -> float:
+    def _calculate_reward(self, prev_obs, obs, success) -> float:
+        cars_driven = 0
+        for i in [key for key in prev_obs.keys() if key.startswith("vehicle_obs")]:
+            cars_driven = cars_driven + prev_obs[i][0]-obs[i][0]
         reward = self.success_action_reward if success else 0
-        reward = reward + cars_driven * self.success_car_drive_reward
+        reward = reward + cars_driven * self.success_car_drive_reward if cars_driven > 0 else 0
         return reward
 
     def _do_action(self, action) -> bool:

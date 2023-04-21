@@ -6,10 +6,11 @@ from .petri_net import JunctionPetriNetEnv, LanePetriNetTuple
 
 class PetriNetEnvArray(JunctionPetriNetEnv):
 
-    def __init__(self, net=None, max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
+    def __init__(self, render_mode=None, net=None, max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
-                 success_car_drive_reward: float = 5.0, max_steps: int = 100) -> None:
-        super().__init__(net=net, max_num_tokens=max_num_tokens, max_num_cars_per_lane=max_num_cars_per_lane,
+                 success_car_drive_reward: float = 5.0, max_steps: int = 300) -> None:
+        super().__init__(render_mode=render_mode, net=net, max_num_tokens=max_num_tokens,
+                         max_num_cars_per_lane=max_num_cars_per_lane,
                          lanes=lanes, success_action_reward=success_action_reward,
                          success_car_drive_reward=success_car_drive_reward, max_steps=max_steps)
 
@@ -30,3 +31,11 @@ class PetriNetEnvArray(JunctionPetriNetEnv):
             idx = idx + 1
 
         return obs
+
+    def _calculate_reward(self, prev_obs, obs, success) -> float:
+        cars_driven = 0
+        for i in range(9, len(prev_obs)):
+            cars_driven = cars_driven + prev_obs[i]-obs[i]
+        reward = self.success_action_reward if success else 0
+        reward = reward + cars_driven * self.success_car_drive_reward if cars_driven > 0 else 0
+        return reward
