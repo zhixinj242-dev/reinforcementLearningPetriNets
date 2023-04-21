@@ -34,6 +34,9 @@ class LanePetriNetTuple(object):
         for i in range(len(self.vehicles)):
             self.vehicles[i].increase_time()
 
+    def max_time(self):
+        return max([v.time_steps for v in self.vehicles]) if len(self.vehicles) > 0 else 0
+
     def drive_vehicles(self) -> int:
         num_cars_drivable = len(self.vehicles)
         cars_driving = np.random.poisson(self.departing_mu)
@@ -62,7 +65,7 @@ class JunctionPetriNetEnv(gym.Env):
     def __init__(self, render_mode=None, net=None, reward_function = None,
                  max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
-                 success_car_drive_reward: float = 5.0, max_steps: int = 100) -> None:
+                 success_car_drive_reward: float = 5.0, max_steps: int = 300) -> None:
         super().__init__()
 
         self._net_backup = net.copy()
@@ -119,11 +122,16 @@ class JunctionPetriNetEnv(gym.Env):
         # }
         observation_dict = {}
         for place in self.net.place():
-            observation_dict["net-{}".format(place.name)] = gym.spaces.Box(low=0.0, high=float(max_num_tokens), dtype=np.float64)
+            observation_dict["net-{}".format(place.name)] = gym.spaces.Box(low=0.0, high=float(max_num_tokens),
+                                                                           dtype=np.float64)
 
         for lane in self.lanes:
-            observation_dict["vehicle_obs-{}".format(lane.name)] = gym.spaces.Box(low=0.0, high=float(max_num_cars_per_lane),
-                                                                                  dtype=np.float64)
+            observation_dict["vehicle_obs-{}-n".format(lane.name)] = gym.spaces.Box(low=0.0,
+                                                                                    high=float(max_num_cars_per_lane),
+                                                                                    dtype=np.float64)
+            observation_dict["vehicle_obs-{}-t".format(lane.name)] = gym.spaces.Box(low=0.0,
+                                                                                    high=self.max_steps,
+                                                                                    dtype=np.float64)
 
         self.observation_space = gym.spaces.Dict(observation_dict)
 
@@ -132,7 +140,7 @@ class JunctionPetriNetEnv(gym.Env):
         self.steps = self.steps + 1
         previous_obs = self._get_obs()
         success = self._do_action(action)
-        cars_driven = self._do_driving()
+        _ = self._do_driving()
         observation = self._get_obs()
         if self.reward_function:
             reward = self.reward_function(previous_obs, observation, success)
@@ -204,6 +212,7 @@ class JunctionPetriNetEnv(gym.Env):
             if self.lanes[i].place in active_places:
                 vehicles_driven = vehicles_driven + self.lanes[i].drive_vehicles()
 
+            self.lanes[i].increase_time()
             self.lanes[i].add_vehicles()
 
         return vehicles_driven
@@ -214,7 +223,8 @@ class JunctionPetriNetEnv(gym.Env):
             obs["net-{}".format(place.name)] = np.array([len(place.tokens)])
         lane_dict = {}
         for lane in self.lanes:
-            obs["vehicle_obs-{}".format(lane.name)] = np.array([len(lane.vehicles)])
+            obs["vehicle_obs-{}-n".format(lane.name)] = np.array([len(lane.vehicles)])
+            obs["vehicle_obs-{}-t".format(lane.name)] = np.array([lane.max_time()])
 
         return obs
 

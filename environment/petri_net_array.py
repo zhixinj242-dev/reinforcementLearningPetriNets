@@ -28,7 +28,8 @@ class PetriNetEnvArray(JunctionPetriNetEnv):
             idx = idx + 1
         for lane in self.lanes:
             obs[idx] = len(lane.vehicles)
-            idx = idx + 1
+            obs[idx+1] = lane.max_time()
+            idx = idx + 2
 
         return obs
 
