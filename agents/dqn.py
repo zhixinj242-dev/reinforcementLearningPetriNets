@@ -2,11 +2,11 @@ from skrl.agents.torch.dqn import DQN
 from skrl.utils.model_instantiators import deterministic_model, Shape
 
 
-def get_dqn_model(env, device, memory, cfg):
+def get_dqn_model(env, memory, cfg):
     models_dqn = {}
     models_dqn["q_network"] = deterministic_model(observation_space=env.observation_space,
                                                   action_space=env.action_space,
-                                                  device=device,
+                                                  device=env.device,
                                                   clip_actions=False,
                                                   input_shape=Shape.OBSERVATIONS,
                                                   hiddens=[64, 64],
@@ -16,7 +16,7 @@ def get_dqn_model(env, device, memory, cfg):
                                                   output_scale=1.0)
     models_dqn["target_q_network"] = deterministic_model(observation_space=env.observation_space,
                                                          action_space=env.action_space,
-                                                         device=device,
+                                                         device=env.device,
                                                          clip_actions=False,
                                                          input_shape=Shape.OBSERVATIONS,
                                                          hiddens=[64, 64],
@@ -30,7 +30,7 @@ def get_dqn_model(env, device, memory, cfg):
         model.init_parameters(method_name="normal_", mean=0.0, std=0.1)
 
     agent = DQN(models=models_dqn, memory=memory, cfg=cfg, observation_space=env.observation_space,
-                action_space=env.action_space, device=device)
+                action_space=env.action_space, device=env.device)
     return agent
 
 
