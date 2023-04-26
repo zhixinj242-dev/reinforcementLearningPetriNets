@@ -143,9 +143,9 @@ class JunctionPetriNetEnv(gym.Env):
         _ = self._do_driving()
         observation = self._get_obs()
         if self.reward_function:
-            reward = self.reward_function(previous_obs, observation, success)
+            reward = self.reward_function(previous_obs, observation, success, self.steps)
         else:
-            reward = self._calculate_reward(previous_obs, observation, success)
+            reward = self._calculate_reward(previous_obs, observation, success, self.steps)
         terminated = self._terminated()
         truncated = False
         info = self._info()
@@ -181,7 +181,7 @@ class JunctionPetriNetEnv(gym.Env):
             flattened_obs.append(observation[k])
         return flattened_obs
 
-    def _calculate_reward(self, prev_obs, obs, success) -> float:
+    def _calculate_reward(self, prev_obs, obs, success, timesteps) -> float:
         cars_driven = 0
         for i in [key for key in prev_obs.keys() if key.startswith("vehicle_obs")]:
             cars_driven = cars_driven + prev_obs[i][0]-obs[i][0]
