@@ -1,3 +1,4 @@
+import torch
 from skrl.agents.torch.dqn import DQN_DEFAULT_CONFIG
 from skrl.envs.torch import wrap_env
 
@@ -6,23 +7,25 @@ from environment import JunctionPetriNetEnv
 from rewards import base_reward
 from utils.petri_net import get_petri_net, Parser
 
-agent_path = "runs/202304261809_exp-600000t-0.04e_20000lrate_10000randtsteps/checkpoints/agent_100000.pt"
+agent_path = "runs/train_202304271635_exp-400000t-0.04e_200000lrate_200000randtsteps/checkpoints/best_agent.pt"
 
 
 def main():
     env = JunctionPetriNetEnv(render_mode="human", reward_function=base_reward,
-                              net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO))
+                              net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO), transitions_to_obs=False, places_to_obs=True)
     env.reset()
     env = wrap_env(env, wrapper="gymnasium")
     agent = get_dqn_model(env, memory=None, cfg=DQN_DEFAULT_CONFIG.copy())
 
     agent.load(agent_path)
+    agent.set_mode("eval")
+    agent.set_running_mode("eval")
 
     terminated = False
     obs, _ = env.reset()
     t = 0
     while not terminated:
-        action, _, _ = agent.act(obs, t, 300)
+        action = torch.argmax(agent.q_network.act({"states": obs}, role="q_network")[0], dim=1, keepdim=True)
 
         obs, reward, terminated, truncated, info = env.step(action)
         print(reward)
@@ -35,7 +38,7 @@ def main():
         t = 0
         terminated = False
         while not terminated:
-            action, _, _ = agent.act(obs, t, 300)
+            action = torch.argmax(agent.q_network.act({"states": obs}, role="q_network")[0], dim=1, keepdim=True)
             obs, reward, terminated, _, _ = env.step(action)
             t = t + 1
         total_timesteps.append(t)
