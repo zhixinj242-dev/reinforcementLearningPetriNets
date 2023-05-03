@@ -65,7 +65,8 @@ class JunctionPetriNetEnv(gym.Env):
     def __init__(self, render_mode=None, net=None, reward_function = None,
                  max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
-                 success_car_drive_reward: float = 5.0, max_steps: int = 300) -> None:
+                 success_car_drive_reward: float = 5.0, max_steps: int = 10000,
+                 transitions_to_obs: bool = True, places_to_obs: bool = False) -> None:
         super().__init__()
 
         self._net_backup = net.copy()
@@ -76,6 +77,8 @@ class JunctionPetriNetEnv(gym.Env):
         self.steps = 0
         self.max_steps = max_steps
         self.reward_function = reward_function
+        self.transitions_to_obs = transitions_to_obs
+        self.places_to_obs = places_to_obs
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -121,9 +124,14 @@ class JunctionPetriNetEnv(gym.Env):
         #       ...
         # }
         observation_dict = {}
-        for place in self.net.place():
-            observation_dict["net-{}".format(place.name)] = gym.spaces.Box(low=0.0, high=float(max_num_tokens),
-                                                                           dtype=np.float64)
+        if self.transitions_to_obs:
+            for t in self.net.transition():
+                observation_dict["act-{}".format(t.name)] = gym.spaces.Box(low=0.0, high=1.0, dtype=np.float64)
+            observation_dict["act-nothing"] = gym.spaces.Box(low=0.0, high=1.0, dtype=np.float64)
+        if self.places_to_obs:
+            for place in self.net.place():
+                observation_dict["net-{}".format(place.name)] = gym.spaces.Box(low=0.0, high=float(max_num_tokens),
+                                                                               dtype=np.float64)
 
         for lane in self.lanes:
             observation_dict["vehicle_obs-{}-n".format(lane.name)] = gym.spaces.Box(low=0.0,
@@ -219,9 +227,13 @@ class JunctionPetriNetEnv(gym.Env):
 
     def _get_obs(self):
         obs = {}
-        for place in self.net.place():
-            obs["net-{}".format(place.name)] = np.array([len(place.tokens)])
-        lane_dict = {}
+        if self.transitions_to_obs:
+            for t in self.net.transition():
+                obs["act-{}".format(t.name)] = np.array(1.0 if len(t.modes()) > 0 else 0.0)
+            obs["act-nothing"] = 1.0
+        if self.places_to_obs:
+            for place in self.net.place():
+                obs["net-{}".format(place.name)] = np.array([len(place.tokens)])
         for lane in self.lanes:
             obs["vehicle_obs-{}-n".format(lane.name)] = np.array([len(lane.vehicles)])
             obs["vehicle_obs-{}-t".format(lane.name)] = np.array([lane.max_time()])
