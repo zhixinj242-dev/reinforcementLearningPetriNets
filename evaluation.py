@@ -45,7 +45,7 @@ def main():
         dqn_agent.load(parser.path)
 
     cfg_trainer = {
-        "timesteps": 7000000,
+        "timesteps": 3000000,
         "headless": True
     }
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=dqn_agent)

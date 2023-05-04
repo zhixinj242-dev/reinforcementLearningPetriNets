@@ -37,17 +37,23 @@ class LanePetriNetTuple(object):
     def max_time(self):
         return max([v.time_steps for v in self.vehicles]) if len(self.vehicles) > 0 else 0
 
-    def drive_vehicles(self) -> int:
+    def drive_vehicles(self) -> (int, int):
         num_cars_drivable = len(self.vehicles)
         cars_driving = np.random.poisson(self.departing_mu)
         if num_cars_drivable < cars_driving:
             self.vehicles = []
-            return num_cars_drivable
+            waiting_times = []
+            for vehicle in self.vehicles:
+                waiting_times.append(vehicle.time_steps)
+            return num_cars_drivable, waiting_times
         else:
             vehicles = len(self.vehicles)
+            waiting_times = []
             for car_num in range(cars_driving):
-                self.vehicles.remove(self._get_longest_waiting_vehicle())
-            return vehicles - len(self.vehicles)
+                car = self._get_longest_waiting_vehicle()
+                waiting_times.append(car.time_steps)
+                self.vehicles.remove(car)
+            return vehicles - len(self.vehicles), waiting_times
 
     def _get_longest_waiting_vehicle(self):
         if len(self.vehicles) == 0:
@@ -65,7 +71,7 @@ class JunctionPetriNetEnv(gym.Env):
     def __init__(self, render_mode=None, net=None, reward_function = None,
                  max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
-                 success_car_drive_reward: float = 5.0, max_steps: int = 10000,
+                 success_car_drive_reward: float = 5.0, max_steps: int = 1000,
                  transitions_to_obs: bool = True, places_to_obs: bool = False) -> None:
         super().__init__()
 
@@ -87,14 +93,14 @@ class JunctionPetriNetEnv(gym.Env):
         assert lanes is None or len(lanes.keys()) == 8
         if lanes is None:
             self.lanes = [
-                LanePetriNetTuple(lane='north_front', place='GreenSN'),
-                LanePetriNetTuple(lane='south_front', place='GreenSN'),
-                LanePetriNetTuple(lane='north_left', place='GreenSWNE'),
-                LanePetriNetTuple(lane='south_left', place='GreenSWNE'),
-                LanePetriNetTuple(lane='west_front', place='GreenWE'),
-                LanePetriNetTuple(lane='east_front', place='GreenWE'),
-                LanePetriNetTuple(lane='west_left', place='GreenWNES'),
-                LanePetriNetTuple(lane='east_left', place='GreenWNES'),
+                LanePetriNetTuple(lane='north_front', place='GreenSN', poisson_mu_arriving=2, poisson_mu_departing=13),
+                LanePetriNetTuple(lane='south_front', place='GreenSN', poisson_mu_arriving=2, poisson_mu_departing=13),
+                LanePetriNetTuple(lane='north_left', place='GreenSWNE', poisson_mu_arriving=1, poisson_mu_departing=8),
+                LanePetriNetTuple(lane='south_left', place='GreenSWNE', poisson_mu_arriving=1, poisson_mu_departing=8),
+                LanePetriNetTuple(lane='west_front', place='GreenWE', poisson_mu_arriving=3, poisson_mu_departing=13),
+                LanePetriNetTuple(lane='east_front', place='GreenWE', poisson_mu_arriving=3, poisson_mu_departing=13),
+                LanePetriNetTuple(lane='west_left', place='GreenWNES', poisson_mu_arriving=1, poisson_mu_departing=8),
+                LanePetriNetTuple(lane='east_left', place='GreenWNES', poisson_mu_arriving=1, poisson_mu_departing=8),
             ]
         else:
             self.lanes = lanes
@@ -148,15 +154,15 @@ class JunctionPetriNetEnv(gym.Env):
         self.steps = self.steps + 1
         previous_obs = self._get_obs()
         success = self._do_action(action)
-        _ = self._do_driving()
+        cars_driven, waiting_times = self._do_driving()
         observation = self._get_obs()
         if self.reward_function:
-            reward = self.reward_function(previous_obs, observation, success, self.steps)
+            reward = self.reward_function(previous_obs, observation, success, self.steps, waiting_times)
         else:
-            reward = self._calculate_reward(previous_obs, observation, success, self.steps)
+            reward = self._calculate_reward(previous_obs, observation, success, self.steps, waiting_times)
         terminated = self._terminated()
         truncated = False
-        info = self._info()
+        info = self._info(success, cars_driven, waiting_times)
 
         return observation, reward, terminated, truncated, info
 
@@ -189,7 +195,7 @@ class JunctionPetriNetEnv(gym.Env):
             flattened_obs.append(observation[k])
         return flattened_obs
 
-    def _calculate_reward(self, prev_obs, obs, success, timesteps) -> float:
+    def _calculate_reward(self, prev_obs, obs, success, timesteps, waiting_times) -> float:
         cars_driven = 0
         for i in [key for key in prev_obs.keys() if key.startswith("vehicle_obs")]:
             cars_driven = cars_driven + prev_obs[i][0]-obs[i][0]
@@ -213,17 +219,20 @@ class JunctionPetriNetEnv(gym.Env):
 
         return True
 
-    def _do_driving(self) -> int:
+    def _do_driving(self) -> (int, int):
         active_places = self._active_places()
         vehicles_driven = 0
+        waiting_times = []
         for i in range(len(self.lanes)):
             if self.lanes[i].place in active_places:
-                vehicles_driven = vehicles_driven + self.lanes[i].drive_vehicles()
+                driven, wait_time = self.lanes[i].drive_vehicles()
+                vehicles_driven = vehicles_driven + driven
+                waiting_times.extend(wait_time)
 
             self.lanes[i].increase_time()
             self.lanes[i].add_vehicles()
 
-        return vehicles_driven
+        return vehicles_driven, waiting_times
 
     def _get_obs(self):
         obs = {}
@@ -247,8 +256,12 @@ class JunctionPetriNetEnv(gym.Env):
                 active_places.append(place.name)
         return active_places
 
-    def _info(self) -> {}:
-        return self._get_obs()
+    def _info(self, success, cars_driven, waiting_times) -> {}:
+        inf = self._get_obs()
+        inf["success"] = success
+        inf["num_cars_driven"] = cars_driven
+        inf["waiting_times"] = waiting_times
+        return inf
 
     def _terminated(self) -> bool:
         # cars exceeded maximum number of waiting cars

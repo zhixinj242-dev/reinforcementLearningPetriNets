@@ -1,33 +1,31 @@
 import torch
-from skrl.agents.torch.dqn import DQN_DEFAULT_CONFIG
-from skrl.envs.torch import wrap_env
-
-from agents.dqn import get_dqn_model
 from environment import JunctionPetriNetEnv
 from rewards import base_reward
 from utils.petri_net import get_petri_net, Parser
-
-agent_path = "runs/cars_driven_timestep_202305031259_exp-400000t-0.04e_100000lrate_100000randtsteps/checkpoints/best_agent.pt"
-
+import numpy as np
 
 def main():
     env = JunctionPetriNetEnv(render_mode="human", reward_function=base_reward,
                               net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO), transitions_to_obs=True, places_to_obs=False)
     env.reset()
-    env = wrap_env(env, wrapper="gymnasium")
-    agent = get_dqn_model(env, memory=None, cfg=DQN_DEFAULT_CONFIG.copy())
-
-    agent.load(agent_path)
-    agent.set_mode("eval")
-    agent.set_running_mode("eval")
 
     terminated = False
-    obs, _ = env.reset()
+    # action_sequence = []
+    action_sequence = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    # action_sequence = [0, 8, 3, 1, 8, 2, 4, 8, 5, 6, 8, 7]
+    action_sequence = [0, 3, 1, 2, 4, 5, 6, 7]
+    action_sequence = [1, 2, 0, 3, 6, 7, 4, 5]
+
+    env.reset()
     t = 0
     while not terminated:
-        action = torch.argmax(agent.q_network.act({"states": obs}, role="q_network")[0], dim=1, keepdim=True)
+        if len(action_sequence) == 0:
+            action = np.random.randint(0, env.action_space.n)
+        else:
+            action = action_sequence[t % len(action_sequence)]
 
         obs, reward, terminated, truncated, info = env.step(action)
+        t = t + 1
         print(reward)
         env.render()
 
@@ -38,7 +36,7 @@ def main():
     min_waiting_times = []
     max_waiting_times = []
     for i in range(iterations):
-        obs, _ = env.reset()
+        env.reset()
         c = 0
         num_cars_driven = 0
         sum_waiting_times = 0
@@ -47,7 +45,10 @@ def main():
         t = 0
         terminated = False
         while not terminated:
-            action = torch.argmax(agent.q_network.act({"states": obs}, role="q_network")[0], dim=1, keepdim=True)
+            if len(action_sequence) == 0:
+                action = np.random.randint(0, env.action_space.n)
+            else:
+                action = action_sequence[t % len(action_sequence)]
             obs, reward, terminated, _, inf = env.step(action)
             if not inf["success"]:
                 c = c + 1
@@ -61,6 +62,8 @@ def main():
         total_timesteps.append(t)
         constraints_broken.append(c)
         average_waiting_times.append(float(sum_waiting_times) / float(num_cars_driven))
+        if min_waiting_time == 10000:
+            continue
         min_waiting_times.append(min_waiting_time)
         max_waiting_times.append(max_waiting_time)
 
