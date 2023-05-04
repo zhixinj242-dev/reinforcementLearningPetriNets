@@ -22,6 +22,12 @@ def generate_parsed_arguments():
     parser.add_argument("-exp-e", "--exploration-final-epsilon", type=float, default=0.04)
     parser.add_argument("-learn-s", "--learning-starts", type=int, default=20000)
     parser.add_argument("-rand-t", "--random-timesteps", type=int, default=10000)
+    parser.add_argument("-reward", "--reward-function", type=str, default="base_reward")
+    parser.add_argument("-m-sucess", "--m-success", type=float, default=1)
+    parser.add_argument("-m-cars-driven", "--m-cars-driven", type=float, default=1)
+    parser.add_argument("-m-waiting-time", "--m-waiting-time", type=float, default=1)
+    parser.add_argument("-m-max-waiting-time", "--m-max-waiting-time", type=float, default=1)
+    parser.add_argument("-m-timestep", "--m-timestep", type=float, default=1)
 
     return parser.parse_args()
 
@@ -29,13 +35,22 @@ def generate_parsed_arguments():
 def main():
     parser = generate_parsed_arguments()
 
-    env = JunctionPetriNetEnv(reward_function=rewards.base_reward,
+    rewards.success_multiplier = parser.m_success
+    rewards.car_driven_multiplier = parser.m_cars_driven
+    rewards.waiting_time_multiplier = parser.m_waiting_time
+    rewards.max_waiting_time_multiplier = parser.m_max_waiting_time
+    rewards.timestep_multiplier = parser.m_timestep
+
+    env = JunctionPetriNetEnv(reward_function=getattr(rewards, parser.reward_function),
                               net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO))
     env.reset()
     env = wrap_env(env, wrapper="gymnasium")
     memory = RandomMemory(memory_size=500000, num_envs=env.num_envs)
 
-    state = "{}{}".format("train" if parser.train else "", "eval" if parser.eval else "")
+    state = "{}".format(parser.reward_function)
+    state = "s{}c{}w{}mw{}t{}".format(parser.m_success, parser.m_cars_driven, parser.m_waiting_time,
+                                      parser.m_max_waiting_time, parser.m_timestep) \
+        if parser.reward_function == "dynamic_reward" else state
 
     cfg = DQN_DEFAULT_CONFIG.copy()
     cfg["batch_size"] = parser.batch_size
@@ -54,8 +69,9 @@ def main():
         dqn_agent.load(parser.path)
 
     cfg_trainer = {
-        "timesteps": 7000000,
-        "headless": True
+        "timesteps": 5000000,
+        "headless": True,
+        "disable_progressbar": True,
     }
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=dqn_agent)
 
