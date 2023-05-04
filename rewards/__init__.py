@@ -35,6 +35,22 @@ def base_reward(prev_obs, obs, success, timestep) -> float:
     r = r + timestep * 2
     return r
 
+def discounted_reward(prev_obs, obs, success, timestep) -> float:
+    discount_factor = 20
+    cars_driven = 0
+    waiting_times = []
+    for i in [key for key in prev_obs.keys() if key.startswith("vehicle_obs") and key.endswith("n")]:
+        cars_driven = cars_driven + prev_obs[i][0] - obs[i][0]
+    for i in [key for key in prev_obs.keys() if key.startswith("vehicle_obs") and key.endswith("t")]:
+        waiting_times.append(obs[i][0])
+    r = 0
+    #r = r + 20 if success else 0
+    r = r + (cars_driven + 5) * 4 if cars_driven > 0 else 0
+    r = r + ((50 * 8) - sum(waiting_times)) * 0.1
+    r = r + (50 - max(waiting_times)) * 0.5
+    r = r + timestep * 2
+    return r/discount_factor
+
 
 def reward_without_time(prev_obs, obs, success, timestep) -> float:
     cars_driven = 0

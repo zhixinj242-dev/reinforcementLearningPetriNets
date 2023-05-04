@@ -1,6 +1,6 @@
 import argparse
 
-from petri_net import PNProParser, PnmlParser
+from utils.petri_net import PNProParser, PnmlParser
 
 
 import snakes.plugins

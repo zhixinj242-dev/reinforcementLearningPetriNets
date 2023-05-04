@@ -1,1 +1,1 @@
-from .qagent import QLearningAgent
+from .constrained_dqn import CDQN

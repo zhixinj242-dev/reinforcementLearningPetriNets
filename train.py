@@ -29,7 +29,7 @@ def generate_parsed_arguments():
 def main():
     parser = generate_parsed_arguments()
 
-    env = JunctionPetriNetEnv(reward_function=rewards.base_reward,
+    env = JunctionPetriNetEnv(reward_function=rewards.discounted_reward,
                               net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO))
     env.reset()
     env = wrap_env(env, wrapper="gymnasium")
@@ -49,7 +49,7 @@ def main():
         .format(state, datetime.now().strftime("%Y%m%d%H%M"), cfg["exploration"]["timesteps"],
                 cfg["exploration"]["final_epsilon"], cfg["learning_starts"], cfg["random_timesteps"])
 
-    dqn_agent = get_dqn_model(env=env, memory=memory, cfg=cfg)
+    dqn_agent = get_dqn_model(env=env, memory=memory, cfg=cfg, constrained=True)
     if parser.path is not None:
         dqn_agent.load(parser.path)
 

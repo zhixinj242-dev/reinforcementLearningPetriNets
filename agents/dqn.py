@@ -1,8 +1,9 @@
 from skrl.agents.torch.dqn import DQN
 from skrl.utils.model_instantiators import deterministic_model, Shape
+from agents import CDQN
 
 
-def get_dqn_model(env, memory, cfg):
+def get_dqn_model(env, memory, cfg, constrained=False):
     models_dqn = {}
     models_dqn["q_network"] = deterministic_model(observation_space=env.observation_space,
                                                   action_space=env.action_space,
@@ -30,7 +31,11 @@ def get_dqn_model(env, memory, cfg):
         model.init_parameters(method_name="normal_", mean=0.0, std=0.1)
 
     agent = DQN(models=models_dqn, memory=memory, cfg=cfg, observation_space=env.observation_space,
+                action_space=env.action_space, device=env.device) if constrained \
+        else CDQN(models=models_dqn, memory=memory, cfg=cfg, observation_space=env.observation_space,
                 action_space=env.action_space, device=env.device)
     return agent
+
+
 
 
