@@ -15,6 +15,8 @@ def main():
     # action_sequence = [0, 8, 3, 1, 8, 2, 4, 8, 5, 6, 8, 7]
     action_sequence = [0, 3, 1, 2, 4, 5, 6, 7]
     action_sequence = [1, 2, 0, 3, 6, 7, 4, 5]
+    action_sequence = [4, 5, 6, 7, 1, 8, 2, 0, 8, 3]
+    action_sequence = [4, 5, 6, 7, 1, 8, 2, 0, 8, 3]
 
     env.reset()
     t = 0
