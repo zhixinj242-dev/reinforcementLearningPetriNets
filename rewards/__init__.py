@@ -110,7 +110,7 @@ def base_reward(prev_obs, obs, success, timestep, waiting_times) -> float:
     r = r + timestep * 0.5
     return r
 
-def discounted_reward(prev_obs, obs, success, timestep) -> float:
+def discounted_reward(prev_obs, obs, success, timestep, waiting_times) -> float:
     discount_factor = 20
     cars_driven = 0
     waiting_times = []
