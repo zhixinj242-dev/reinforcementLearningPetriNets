@@ -53,7 +53,7 @@ def c_deterministic_model(observation_space: Optional[Union[int, Tuple[int], gym
             elif self.instantiator_input_type == -2:
                 output = self.net(torch.cat((inputs["states"], inputs["taken_actions"]), dim=1))
 
-            return output * self.instantiator_output_scale, {}
+            return torch.mul(output, inputs["states"][0][0:self.action_space.n]) * self.instantiator_output_scale, {}
 
     metadata = {"input_shape": input_shape,
                 "hiddens": hiddens,
