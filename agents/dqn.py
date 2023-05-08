@@ -27,9 +27,6 @@ def get_dqn_model(env, memory, cfg, constrained=False):
                                                          output_activation=None,
                                                          output_scale=1.0)
 
-    # Initialize the models' parameters (weights and biases) using a Gaussian distribution
-        for model in models_dqn.values():
-            model.init_parameters(method_name="normal_", mean=0.0, std=0.1)
 
     else:
         models_dqn["q_network"] = c_deterministic_model(observation_space=env.observation_space,
@@ -53,6 +50,9 @@ def get_dqn_model(env, memory, cfg, constrained=False):
                                                          output_activation=None,
                                                          output_scale=1.0)
 
+    # Initialize the models' parameters (weights and biases) using a Gaussian distribution
+    for model in models_dqn.values():
+            model.init_parameters(method_name="normal_", mean=0.0, std=0.1)
 
     agent = DQN(models=models_dqn, memory=memory, cfg=cfg, observation_space=env.observation_space,
                 action_space=env.action_space, device=env.device) if constrained \
