@@ -312,5 +312,7 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,python,intellij+all
 
 runs/
+lido*
+plotting/*.png
 
 *-output.txt
