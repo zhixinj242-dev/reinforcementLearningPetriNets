@@ -32,12 +32,13 @@ class CDQN(DQN):
         states = self._state_preprocessor(states)
 
         # calculate safe sets for optimal deterministic policy extraction
-        #transitions = states.numpy()[0][:self.action_space.n]
-        #valid_transitions = np.where(transitions == 1)[0]
+        transitions = states.numpy()[0][:self.action_space.n]
 
         # for evaluation purposes (fully exploit)
         if not self._exploration_timesteps:
-            return torch.argmax(self.q_network.act({"states": states}, role="q_network")[0], dim=1,
+            q_actions = self.q_network.act({"states": states}, role="q_network")[0]
+            valid_q_actions = torch.mul(q_actions, torch.Tensor(transitions))
+            return torch.argmax(valid_q_actions, dim=1,
                                 keepdim=True), None, None
 
         # sample random actions

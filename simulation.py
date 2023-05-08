@@ -7,7 +7,7 @@ from environment import JunctionPetriNetEnv
 from rewards import base_reward
 from utils.petri_net import get_petri_net, Parser
 
-agent_path = "runs/cars_driven_timestep_202305031259_exp-400000t-0.04e_100000lrate_100000randtsteps/checkpoints/best_agent.pt"
+agent_path = "runs/train_202305041554_exp-2000000t-0.05e_150000lrate_150000randtsteps/checkpoints/best_agent.pt"
 
 
 def main():
