@@ -4,3 +4,4 @@ beautifulsoup4~=4.12.0
 lxml
 snakes~=0.9.30
 skrl
+pygame

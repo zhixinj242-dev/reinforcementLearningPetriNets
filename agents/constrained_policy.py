@@ -1,6 +1,6 @@
 from skrl.models.torch.deterministic import DeterministicMixin
 from typing import Union, Mapping, Tuple, Any
-import gymnasium
+import gymnasium as gym
 import torch
 
 

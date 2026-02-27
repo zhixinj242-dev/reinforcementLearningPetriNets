@@ -1,62 +1,51 @@
 #!/bin/bash
 
-exploration_timesteps=(400000)
-exploration_final_epsilon=("0.04")
-learning_starts=(100000)
-random_timesteps=(100000)
-reward_function=("constraint_driven_waiting_times_timesteps" "constraint_avg_waiting_times_and_timesteps" "constraint_timestep" "driven_waiting_times_timesteps" "avg_waiting_times_and_timesteps" "timestep" "constraint_cars_driven_timestep" "cars_driven_timestep" "base_reward")
+# 训练脚本，运行16组不同的奖励函数参数
 
-reward_function=("dynamic_reward")
-m_success=("0.1" "1.5")
-m_cars_driven=("0.1" "1.5")
-m_waiting_time=("0.1" "1.5")
-m_max_waiting_time=("0.1" "1.5")
-m_timestep=("0.1" "1.5")
+# 定义8组不同的奖励函数参数
+reward_params_list=(
+  "0.0 0.0 1.0 0.0 0.0"
+  "0.0 0.0 1.0 1.5 0.0"
+  "1.0 0.0 1.0 0.0 0.0"
+  "1.0 0.0 1.0 1.5 0.0"
+  "1.5 0.0 1.0 0.0 0.0"
+  "1.5 0.0 1.0 1.5 0.0"
+  "2.0 0.0 1.0 0.0 0.0"
+  "2.0 0.0 1.0 1.5 0.0"
+)
 
-
-for reward in "${reward_function[@]}"
-do
-  for rt in "${random_timesteps[@]}"
-  do
-    for ls in "${learning_starts[@]}"
-    do
-      for efe in "${exploration_final_epsilon[@]}"
-      do
-        for et in "${exploration_timesteps[@]}"
-        do
-          if [ "$reward" = "dynamic_reward" ]
-          then
-            for ms in "${m_success[@]}"
-            do
-              for mc in "${m_cars_driven[@]}"
-              do
-                for mw in "${m_waiting_time[@]}"
-                do
-                  for mmw in "${m_max_waiting_time[@]}"
-                  do
-                    for mt in "${m_timestep[@]}"
-                    do
-                      echo "train.py --train --exploration_timesteps $et --exploration-final-epsilon $efe \
-                                     --learning-starts $ls --random-timesteps $rt --reward-function $reward \
-                                     --m-success $ms --m-cars-driven $mc --m-waiting-time $mw \
-                                     --m-max-waiting-time $mmw --m-timestep $mt"
-                      python train.py --train --exploration-timesteps $et --exploration-final-epsilon $efe \
-                                      --learning-starts $ls --random-timesteps $rt --reward-function $reward \
-                                      --m-success $ms --m-cars-driven $mc --m-waiting-time $mw \
-                                      --m-max-waiting-time $mmw --m-timestep $mt &
-                    done
-                  done
-                done
-              done
-            done
-          else
-            echo "train.py --train --exploration_timesteps $et --exploration-final-epsilon $efe \
-                           --learning-starts $ls --random-timesteps $rt --reward-function $reward"
-            python train.py --train --exploration-timesteps $et --exploration-final-epsilon $efe --learning-starts $ls \
-                            --random-timesteps $rt --reward-function $reward &
-          fi
-        done
-      done
-    done
+# 遍历算法类型（CDQN 先，DQN 后）
+algorithms=("true" "false")  # 先 true (CDQN)，后 false (DQN)
+for constrained in "${algorithms[@]}"; do
+  # 遍历所有参数组合
+  param_idx=1
+  for params in "${reward_params_list[@]}"; do
+    # 解析参数
+    read -r success cars_driven waiting_time max_waiting_time timestep <<< "$params"
+    
+    # 构建命令
+    constrained_flag=""
+    algorithm_name="DQN"
+    if [ "$constrained" = "true" ]; then
+      constrained_flag="--constrained"
+      algorithm_name="CDQN"
+    fi
+    
+    echo ""
+    echo "===== 开始运行 $param_idx/8 参数组，算法: $algorithm_name ====="
+    echo "奖励函数参数: success=$success, cars_driven=$cars_driven, waiting_time=$waiting_time, max_waiting_time=$max_waiting_time, timestep=$timestep"
+    
+    # 运行训练
+    python train.py --train $constrained_flag \
+      --m-success "$success" \
+      --m-cars-driven "$cars_driven" \
+      --m-waiting-time "$waiting_time" \
+      --m-max-waiting-time "$max_waiting_time" \
+      --m-timestep "$timestep"
+    
+    param_idx=$((param_idx + 1))
   done
 done
+
+echo ""
+echo "===== 所有训练完成 ====="
