@@ -1,0 +1,62 @@
+# .github/workflows/train-on-server.yml
+name: 自动在云服务器运行批量训练
+
+on:
+  push:
+    branches: [ new ]  # 触发分支，可根据需要修改
+
+permissions:
+  contents: read
+
+jobs:
+  train-on-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取最新代码
+        uses: actions/checkout@v4
+
+      - name: 配置 SSH 连接云服务器
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 验证 Secrets 配置（位数检查）
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "===== Secrets 位数验证 ====="
+          echo "SERVER_USER 长度：${#SERVER_USER}"
+          echo "SERVER_IP 长度：${#SERVER_IP}"
+          echo "SERVER_PORT 长度：${#SERVER_PORT}"
+          echo "SSH_PRIVATE_KEY 长度（粗略）：${#SSH_PRIVATE_KEY}"
+          echo "============================"
+
+      - name: 登录服务器并运行训练
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PROJECT_PATH: "/autodl-tmp/petri RL"  # 你的带空格路径
+        run: |
+          echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
+          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
+            cd "$PROJECT_PATH"
+            echo "当前工作目录：\$(pwd)"
+            echo "开始拉取最新代码..."
+            git pull origin new || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"
+            export PYTHONPATH="\$(pwd)/src:\$PYTHONPATH"
+            echo "Python 路径配置完成：\$PYTHONPATH"
+            chmod +x "scripts/train_all_complete.sh"
+            echo "开始后台运行训练脚本..."
+            pkill -f train_all_complete.sh || echo "无旧训练进程，继续"
+            nohup bash "scripts/train_all_complete.sh" > "training.log" 2>&1 &
+            sleep 3
+            echo "训练脚本启动状态："
+            pgrep -f train_all_complete.sh && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败，请检查脚本"
+            echo "日志文件位置：$PROJECT_PATH/training.log"
+            echo "最新日志："
+            tail -n 30 "$PROJECT_PATH/training.log" || echo "日志文件暂未生成，脚本刚启动"
+          EOF
