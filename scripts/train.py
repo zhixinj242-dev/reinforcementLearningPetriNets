@@ -1,3 +1,4 @@
+import csv
 """
 【文件角色】：训练脚本入口。
 负责：解析命令行参数、构建环境与记忆池、配置 DQN/CDQN、启动训练或评估。
@@ -16,7 +17,7 @@ from agents.dqn import get_dqn_model
 from environment import JunctionPetriNetEnv
 import rewards
 from utils.petri_net import get_petri_net, Parser
-from utils.log_manager import LogManager
+from utils.violation_logger import ViolationLogger
 
 
 def generate_parsed_arguments():
@@ -155,7 +156,7 @@ def main():
     # 8. 设置训练器
     # 【关键修复】：确保 lido-run-events 目录存在
     import os
-    os.makedirs("lido-run-events", exist_ok=True)
+    os.makedirs("models", exist_ok=True)
     
     exp_name = cfg["experiment"]["experiment_name"]
     if parser.process_id is not None:
@@ -172,7 +173,7 @@ def main():
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=agent)
     
     # 【关键修复】：设置 checkpoint 保存路径
-    checkpoint_dir = os.path.join("lido-run-events", exp_name, "checkpoints")
+    checkpoint_dir = os.path.join("models", exp_name, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
     
     # 【关键修复】：重写 trainer 的训练方法以保存 checkpoint
@@ -232,6 +233,8 @@ def main():
             
             # 导入 evaluation 模块
             import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
             import os
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             
@@ -242,7 +245,7 @@ def main():
             old_argv = sys.argv
             sys.argv = [
                 "evaluation.py",
-                "--best-from-dir", "lido-run-events",
+                "--best-from-dir", "models",
                 "--exp-name", exp_name,
                 "--constrained" if parser.constrained else "--no-constrained"
             ]
@@ -251,7 +254,7 @@ def main():
                 # 生成新的 parser 对象
                 eval_parser = evaluation.generate_parsed_arguments()
                 evaluation.run_best_from_checkpoints(eval_parser)
-                print(f"{pid_prefix} 评估完成，最优模型已保存到: lido-run-events/{exp_name}_best.pt", flush=True)
+                print(f"{pid_prefix} 评估完成，最优模型已保存到: models/{exp_name}_best.pt", flush=True)
             except Exception as e:
                 print(f"{pid_prefix} 评估失败: {str(e)}", flush=True)
             finally:

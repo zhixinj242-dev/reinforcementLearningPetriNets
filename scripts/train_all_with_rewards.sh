@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 训练脚本，运行16组不同的奖励函数参数
+# 批量训练所有参数组合，并生成奖励曲线
 
 # 定义8组不同的奖励函数参数
 reward_params_list=(
@@ -31,21 +31,29 @@ for constrained in "${algorithms[@]}"; do
       algorithm_name="CDQN"
     fi
     
+    # 构建实验名称
+    exp_name="agent_s${success}c${cars_driven}w${waiting_time}mw${max_waiting_time}t${timestep}_${algorithm_name,,}"
+    
     echo ""
     echo "===== 开始运行 $param_idx/8 参数组，算法: $algorithm_name ====="
     echo "奖励函数参数: success=$success, cars_driven=$cars_driven, waiting_time=$waiting_time, max_waiting_time=$max_waiting_time, timestep=$timestep"
+    echo "实验名称: $exp_name"
     
-    # 运行训练
-    cd scripts && python train.py --train $constrained_flag \
+    # 运行带奖励跟踪的训练
+    cd scripts && python simple_reward_tracker.py \
+      --exp-name "$exp_name" \
+      $constrained_flag \
       --m-success "$success" \
       --m-cars-driven "$cars_driven" \
       --m-waiting-time "$waiting_time" \
       --m-max-waiting-time "$max_waiting_time" \
-      --m-timestep "$timestep"
+      --m-timestep "$timestep" \
+      --timesteps 3000
     
     param_idx=$((param_idx + 1))
   done
 done
 
 echo ""
-echo "===== 所有训练完成 ====="
+echo "===== 所有训练完成，奖励曲线已生成 ====="
+echo "奖励曲线保存在 experiments/results/ 目录中"

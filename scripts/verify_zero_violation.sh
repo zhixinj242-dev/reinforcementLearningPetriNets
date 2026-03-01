@@ -2,7 +2,7 @@
 
 # 1. 确保有 _best.pt 模型
 echo "正在从训练记录中提取最优模型..."
-python evaluation.py --best-from-dir models
+cd scripts && python evaluation.py --best-from-dir models
 
 # 2. 运行仿真验证
 echo "============================================================"

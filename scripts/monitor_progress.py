@@ -7,6 +7,8 @@
 """
 import os
 import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import time
 import glob
 import argparse
@@ -60,7 +62,7 @@ def get_train_status(base_dir, exp_name):
 def monitor_training():
     """监控训练进度"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    base_dir = os.path.join(script_dir, "lido-run-events")
+    base_dir = os.path.join(script_dir, "models")
     
     try:
         while True:
@@ -114,7 +116,7 @@ def monitor_training():
 def monitor_simulation():
     """监控 simulation 进度（读取 simulation-results.csv）"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(script_dir, "simulation-results.csv")
+    csv_path = os.path.join(script_dir, "experiments/results/simulation-results.csv")
     
     try:
         import pandas as pd

@@ -4,8 +4,8 @@
 
 用法：
   python add_to_comparison.py --method GAIL --path gail_policy.pt
-  python add_to_comparison.py --method CDQN --path lido-run-events/agent_s1.5c0.0w1.0mw1.5t0.0_cdqn.pt
-  python add_to_comparison.py --method DQN  --path lido-run-events/agent_s1.5c0.0w1.0mw1.5t0.0_dqn.pt
+  python add_to_comparison.py --method CDQN --path models/agent_s1.5c0.0w1.0mw1.5t0.0_cdqn.pt
+  python add_to_comparison.py --method DQN  --path models/agent_s1.5c0.0w1.0mw1.5t0.0_dqn.pt
 """
 import argparse
 import torch

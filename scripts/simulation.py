@@ -43,7 +43,7 @@ def main(p, model_type="cdqn", render_mode=None, iterations=200):
     """
     suffix = "_cdqn" if model_type == "cdqn" else "_dqn"
     exp_name = "agent_s{}c{}w{}mw{}t{}{}".format(p[0], p[1], p[2], p[3], p[4], suffix)
-    path = "lido-run-events/{}_best.pt".format(exp_name)
+    path = "models/{}_best.pt".format(exp_name)
     if not os.path.isfile(path):
         print("[sim] 跳过 {}：未找到最优模型 {}，请先运行 evaluation.py --best-from-dir lido-run-events --exp-name {}".format(
             exp_name, path, exp_name))
