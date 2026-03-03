@@ -1,9 +1,10 @@
-# .github/workflows/train-on-server.yml
 name: 自动在云服务器运行批量训练
 
 on:
   push:
     branches: [ new ]
+  # 新增手动触发，方便验证（不影响push触发）
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,10 +12,9 @@ permissions:
 jobs:
   train-on-server:
     runs-on: ubuntu-latest
-    # 网络波动重试机制
-    strategy:
-      retry: 2
-      max-parallel: 1
+    # 替换旧的retry语法，用更稳定的配置
+    continue-on-error: false
+    timeout-minutes: 10  # 超时保护，避免卡壳
 
     steps:
       - name: 配置 SSH 连接云服务器
@@ -27,38 +27,38 @@ jobs:
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          # 核心修正：路径包含空格，严格匹配图片中的目录名
-            PROJECT_PATH: "/root/autodl-tmp/'petri RL'"
+          # 修正1：缩进对齐 + 路径去掉多余单引号
+          PROJECT_PATH: "/root/autodl-tmp/petri RL"
         run: |
           echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
-          # 加 -T 消除伪终端提示，ConnectTimeout 防止无限等待
-          ssh -T -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
-            # 关键：带空格的路径必须用双引号包裹
+          # 修正2：改用三层引号嵌套，确保路径空格在服务器端解析
+          ssh -T -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p $SERVER_PORT $SERVER_USER@$SERVER_IP 'bash -c '"'"'
+            # 核心：双引号包裹带空格的路径
             cd "$PROJECT_PATH" || { echo "❌ 目录 $PROJECT_PATH 不存在"; exit 1; }
             echo "✅ 成功进入项目目录：$PROJECT_PATH"
             
             echo "开始拉取最新代码..."
             git pull origin new || echo "⚠️ 代码拉取失败（可能本地有未提交修改），继续执行训练"
             
-            export PYTHONPATH="\$(pwd)/src:\$PYTHONPATH"
-            echo "Python 路径配置完成：\$PYTHONPATH"
+            export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
+            echo "Python 路径配置完成：$PYTHONPATH"
             
             # 脚本路径同样用双引号，避免空格问题
-            SCRIPT_PATH="\$(pwd)/scripts/train_all_complete.sh"
-            chmod +x "\$SCRIPT_PATH" || echo "⚠️ 脚本无执行权限，尝试强制添加"
+            SCRIPT_PATH="$(pwd)/scripts/train_all_complete.sh"
+            chmod +x "$SCRIPT_PATH" || echo "⚠️ 脚本无执行权限，尝试强制添加"
             
             echo "开始后台运行训练脚本..."
             pkill -f "train_all_complete.sh" || echo "ℹ️ 无旧训练进程，继续"
             
             # nohup 命令中脚本路径也需双引号
-            nohup bash "\$SCRIPT_PATH" > training.log 2>&1 &
+            nohup bash "$SCRIPT_PATH" > training.log 2>&1 &
             sleep 3
             
             echo "训练脚本启动状态："
             pgrep -f "train_all_complete.sh" && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败，请检查脚本"
             
-            LOG_PATH="\$(pwd)/training.log"
+            LOG_PATH="$(pwd)/training.log"
             echo "日志文件位置：$LOG_PATH"
             echo "最新日志："
-            tail -n 30 "\$LOG_PATH" || echo "ℹ️ 日志文件暂未生成，脚本刚启动"
-          EOF
+            tail -n 30 "$LOG_PATH" || echo "ℹ️ 日志文件暂未生成，脚本刚启动"
+          '"'"
