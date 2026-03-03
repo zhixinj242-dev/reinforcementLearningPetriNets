@@ -28,7 +28,7 @@ jobs:
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           # 核心修正：路径包含空格，严格匹配图片中的目录名
-          PROJECT_PATH: "/root/autodl-tmp/petri RL"
+            PROJECT_PATH: "/root/autodl-tmp/'petri RL'"
         run: |
           echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
           # 加 -T 消除伪终端提示，ConnectTimeout 防止无限等待
