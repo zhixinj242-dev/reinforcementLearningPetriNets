@@ -1,12 +1,10 @@
 # .github/workflows/train-on-server.yml
 name: 自动在云服务器运行批量训练
 
-# 触发条件：推送代码到 new 分支时运行
 on:
   push:
     branches: [ new ]
 
-# 配置基础权限
 permissions:
   contents: read
 
@@ -30,27 +28,21 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           echo "===== Secrets 位数验证 ====="
-          # 打印各参数长度，验证是否配置正确（不泄露敏感值）
           echo "SERVER_USER 长度：${#SERVER_USER} (正确值应为 4，对应 'root')"
           echo "SERVER_IP 长度：${#SERVER_IP} (正确值应为 23，对应 'connect.westc.gpuhub.com')"
           echo "SERVER_PORT 长度：${#SERVER_PORT} (正确值应为 5，对应 '17367')"
           echo "SSH_PRIVATE_KEY 长度（粗略）：${#SSH_PRIVATE_KEY} (正确值应为几百~上千)"
           echo "============================"
-          # 打印参数脱敏信息（仅前3位+后3位）
-          echo "SERVER_USER 脱敏：${SERVER_USER:0:3}..."
-          echo "SERVER_IP 脱敏：${SERVER_IP:0:3}...${SERVER_IP: -3}"
-          echo "SERVER_PORT 脱敏：${SERVER_PORT:0:2}...${SERVER_PORT: -2}"
 
       - name: 登录服务器并运行训练
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          PROJECT_PATH: "/root/reinforcementLearningPetriNets"
+          # 核心修改：指向真实项目路径
+          PROJECT_PATH: "/autodl-tmp/petriRL"
         run: |
-          # 先打印连接参数，方便排查问题
           echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
-          # 标准 SSH 连接命令（无行内注释，避免解析错误）
           ssh -o StrictHostKeyChecking=no -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
             cd $PROJECT_PATH
             echo "开始拉取最新代码..."
@@ -61,10 +53,10 @@ jobs:
             echo "开始后台运行训练脚本..."
             pkill -f train_all_complete.sh || echo "无旧训练进程，继续"
             nohup bash scripts/train_all_complete.sh > training.log 2>&1 &
-            sleep 2
+            sleep 3
             echo "训练脚本启动状态："
-            pgrep -f train_all_complete.sh && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败"
+            pgrep -f train_all_complete.sh && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败，请检查脚本"
             echo "日志文件位置：$PROJECT_PATH/training.log"
             echo "最新日志："
-            tail -n 20 $PROJECT_PATH/training.log
+            tail -n 30 $PROJECT_PATH/training.log || echo "日志文件暂未生成，脚本刚启动"
           EOF
