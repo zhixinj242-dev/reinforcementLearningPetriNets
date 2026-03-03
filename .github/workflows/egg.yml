@@ -1,0 +1,48 @@
+# .github/workflows/train-on-server.yml
+name: 自动在云服务器运行批量训练
+
+# 修复后的触发条件：推送代码到 new 分支时运行
+on:
+  push:
+    branches: [ new ]  # 这里指定触发分支为 new，替换原来的 main
+
+# 配置权限（SSH 需要的基础权限）
+permissions:
+  contents: read
+
+# 以下内容保持不变（jobs 部分无需修改）
+jobs:
+  train-on-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取最新代码
+        uses: actions/checkout@v4
+
+      - name: 配置 SSH 连接云服务器
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 登录服务器并运行训练
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PROJECT_PATH: "/root/reinforcementLearningPetriNets"
+        run: |
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << EOF
+            cd $PROJECT_PATH
+            echo "开始拉取最新代码..."
+            git pull origin new || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"  # 注意：这里也要把 main 改成 new，同步对应分支代码
+            export PYTHONPATH=\$(pwd)/src:\$PYTHONPATH
+            echo "Python 路径配置完成：\$PYTHONPATH"
+            chmod +x scripts/train_all_complete.sh
+            echo "开始后台运行训练脚本..."
+            pkill -f train_all_complete.sh || echo "无旧训练进程，继续"
+            nohup bash scripts/train_all_complete.sh > training.log 2>&1 &
+            sleep 2
+            echo "训练脚本启动状态："
+            pgrep -f train_all_complete.sh && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败"
+            echo "日志文件位置：$PROJECT_PATH/training.log"
+            echo "最新日志："
+            tail -n 20 $PROJECT_PATH/training.log
+          EOF
