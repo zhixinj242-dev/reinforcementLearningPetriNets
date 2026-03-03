@@ -24,13 +24,14 @@ jobs:
 
       - name: 登录服务器并运行训练
         env:
-          # 补充缺失的 SERVER_PORT，和你配置的 Secrets 对应
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           PROJECT_PATH: "/root/reinforcementLearningPetriNets"
         run: |
-          # 关键修改：ssh 命令里加上 -p $SERVER_PORT，指定端口号
+          # 先打印连接参数，方便排查问题
+          echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
+          # 标准 SSH 连接命令（无行内注释，避免解析错误）
           ssh -o StrictHostKeyChecking=no -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
             cd $PROJECT_PATH
             echo "开始拉取最新代码..."
