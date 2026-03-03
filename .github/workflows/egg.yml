@@ -11,52 +11,54 @@ permissions:
 jobs:
   train-on-server:
     runs-on: ubuntu-latest
-    steps:
-      - name: 拉取最新代码
-        uses: actions/checkout@v4
+    # 网络波动重试机制
+    strategy:
+      retry: 2
+      max-parallel: 1
 
+    steps:
       - name: 配置 SSH 连接云服务器
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: 验证 Secrets 配置（位数检查）
-        env:
-          SERVER_IP: ${{ secrets.SERVER_IP }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          echo "===== Secrets 位数验证 ====="
-          echo "SERVER_USER 长度：${#SERVER_USER} (正确值应为 4，对应 'root')"
-          echo "SERVER_IP 长度：${#SERVER_IP} (正确值应为 23，对应 'connect.westc.gpuhub.com')"
-          echo "SERVER_PORT 长度：${#SERVER_PORT} (正确值应为 5，对应 '17367')"
-          echo "SSH_PRIVATE_KEY 长度（粗略）：${#SSH_PRIVATE_KEY} (正确值应为几百~上千)"
-          echo "============================"
 
       - name: 登录服务器并运行训练
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          # 核心修改：指向真实项目路径
-          PROJECT_PATH: "/autodl-tmp/petriRL"
+          # 核心修正：路径包含空格，严格匹配图片中的目录名
+          PROJECT_PATH: "/autodl-tmp/petri RL"
         run: |
           echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
-          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
-            cd $PROJECT_PATH
+          # 加 -T 消除伪终端提示，ConnectTimeout 防止无限等待
+          ssh -T -o StrictHostKeyChecking=no -o ConnectTimeout=30 -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
+            # 关键：带空格的路径必须用双引号包裹
+            cd "$PROJECT_PATH" || { echo "❌ 目录 $PROJECT_PATH 不存在"; exit 1; }
+            echo "✅ 成功进入项目目录：$PROJECT_PATH"
+            
             echo "开始拉取最新代码..."
-            git pull origin new || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"
-            export PYTHONPATH=\$(pwd)/src:\$PYTHONPATH
+            git pull origin new || echo "⚠️ 代码拉取失败（可能本地有未提交修改），继续执行训练"
+            
+            export PYTHONPATH="\$(pwd)/src:\$PYTHONPATH"
             echo "Python 路径配置完成：\$PYTHONPATH"
-            chmod +x scripts/train_all_complete.sh
+            
+            # 脚本路径同样用双引号，避免空格问题
+            SCRIPT_PATH="\$(pwd)/scripts/train_all_complete.sh"
+            chmod +x "\$SCRIPT_PATH" || echo "⚠️ 脚本无执行权限，尝试强制添加"
+            
             echo "开始后台运行训练脚本..."
-            pkill -f train_all_complete.sh || echo "无旧训练进程，继续"
-            nohup bash scripts/train_all_complete.sh > training.log 2>&1 &
+            pkill -f "train_all_complete.sh" || echo "ℹ️ 无旧训练进程，继续"
+            
+            # nohup 命令中脚本路径也需双引号
+            nohup bash "\$SCRIPT_PATH" > training.log 2>&1 &
             sleep 3
+            
             echo "训练脚本启动状态："
-            pgrep -f train_all_complete.sh && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败，请检查脚本"
-            echo "日志文件位置：$PROJECT_PATH/training.log"
+            pgrep -f "train_all_complete.sh" && echo "✅ 训练进程已启动" || echo "❌ 训练进程启动失败，请检查脚本"
+            
+            LOG_PATH="\$(pwd)/training.log"
+            echo "日志文件位置：$LOG_PATH"
             echo "最新日志："
-            tail -n 30 $PROJECT_PATH/training.log || echo "日志文件暂未生成，脚本刚启动"
+            tail -n 30 "\$LOG_PATH" || echo "ℹ️ 日志文件暂未生成，脚本刚启动"
           EOF
