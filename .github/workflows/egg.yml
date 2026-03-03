@@ -22,6 +22,25 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: 验证 Secrets 配置（位数检查）
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "===== Secrets 位数验证 ====="
+          # 打印各参数长度，验证是否配置正确（不泄露敏感值）
+          echo "SERVER_USER 长度：${#SERVER_USER} (正确值应为 4，对应 'root')"
+          echo "SERVER_IP 长度：${#SERVER_IP} (正确值应为 23，对应 'connect.westc.gpuhub.com')"
+          echo "SERVER_PORT 长度：${#SERVER_PORT} (正确值应为 5，对应 '17367')"
+          echo "SSH_PRIVATE_KEY 长度（粗略）：${#SSH_PRIVATE_KEY} (正确值应为几百~上千)"
+          echo "============================"
+          # 打印参数脱敏信息（仅前3位+后3位）
+          echo "SERVER_USER 脱敏：${SERVER_USER:0:3}..."
+          echo "SERVER_IP 脱敏：${SERVER_IP:0:3}...${SERVER_IP: -3}"
+          echo "SERVER_PORT 脱敏：${SERVER_PORT:0:2}...${SERVER_PORT: -2}"
+
       - name: 登录服务器并运行训练
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
