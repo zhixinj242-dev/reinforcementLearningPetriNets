@@ -1,16 +1,15 @@
 # .github/workflows/train-on-server.yml
 name: 自动在云服务器运行批量训练
 
-# 修复后的触发条件：推送代码到 new 分支时运行
+# 触发条件：推送代码到 new 分支时运行
 on:
   push:
-    branches: [ new ]  # 这里指定触发分支为 new，替换原来的 main
+    branches: [ new ]
 
-# 配置权限（SSH 需要的基础权限）
+# 配置基础权限
 permissions:
   contents: read
 
-# 以下内容保持不变（jobs 部分无需修改）
 jobs:
   train-on-server:
     runs-on: ubuntu-latest
@@ -25,14 +24,17 @@ jobs:
 
       - name: 登录服务器并运行训练
         env:
+          # 补充缺失的 SERVER_PORT，和你配置的 Secrets 对应
           SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           PROJECT_PATH: "/root/reinforcementLearningPetriNets"
         run: |
-          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << EOF
+          # 关键修改：ssh 命令里加上 -p $SERVER_PORT，指定端口号
+          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT $SERVER_USER@$SERVER_IP << EOF
             cd $PROJECT_PATH
             echo "开始拉取最新代码..."
-            git pull origin new || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"  # 注意：这里也要把 main 改成 new，同步对应分支代码
+            git pull origin new || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"
             export PYTHONPATH=\$(pwd)/src:\$PYTHONPATH
             echo "Python 路径配置完成：\$PYTHONPATH"
             chmod +x scripts/train_all_complete.sh
