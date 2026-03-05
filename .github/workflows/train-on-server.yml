@@ -3,7 +3,7 @@ name: 自动在云服务器运行批量训练
 
 on:
   push:
-    branches: [ new ]  # 触发分支，可根据需要修改
+    branches: [main]  # 触发分支，可根据需要修改
 
 permissions:
   contents: read
