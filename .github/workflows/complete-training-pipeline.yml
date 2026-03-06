@@ -52,12 +52,6 @@ jobs:
             echo "开始拉取最新代码..."
             git pull origin cdqn_optimize || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"
             
-            # 检查当前目录内容
-            echo "当前目录内容："
-            ls -la
-            echo "检查train_all.sh文件："
-            find . -name "train_all.sh" -type f
-            
             # 设置Python路径
             export PYTHONPATH="$(pwd):$PYTHONPATH"
             echo "Python 路径配置完成：$PYTHONPATH"
@@ -81,17 +75,46 @@ jobs:
                 LOG_FILE="training_$(date +%Y%m%d_%H%M%S).log"
                 echo "训练日志将保存到: $LOG_FILE"
                 
+                # 添加训练开始标记
+                echo "===== 训练开始 $(date) =====" >> "$LOG_FILE"
+                echo "训练脚本: $TRAIN_SCRIPT" >> "$LOG_FILE"
+                echo "工作目录: $(pwd)" >> "$LOG_FILE"
+                echo "项目路径: $PROJECT_DIR" >> "$LOG_FILE"
+                echo "=========================" >> "$LOG_FILE"
+                
                 # 后台运行训练并记录日志
-                nohup bash "$TRAIN_SCRIPT" > "$LOG_FILE" 2>&1 &
+                nohup bash "$TRAIN_SCRIPT" >> "$LOG_FILE" 2>&1 &
                 TRAIN_PID=$!
-                echo "训练进程PID: $TRAIN_PID"
+                echo "训练进程PID: $TRAIN_PID" | tee -a "$LOG_FILE"
                 
                 # 定期检查训练进度
                 echo "开始监控训练进度..."
+                CHECK_COUNT=0
                 while kill -0 $TRAIN_PID 2>/dev/null; do
-                  echo "[$(date +%Y-%m-%d\ %H:%M:%S)] 训练进行中... (PID: $TRAIN_PID)"
-                  tail -n 5 "$LOG_FILE" 2>/dev/null || echo "日志文件尚未生成"
-                  sleep 60  # 每分钟检查一次
+                  CHECK_COUNT=$((CHECK_COUNT + 1))
+                  echo "===== 检查 #$CHECK_COUNT [$(date +%Y-%m-%d\ %H:%M:%S)] ====="
+                   echo "训练进程PID: $TRAIN_PID"
+                   echo "项目路径: $PROJECT_DIR"
+                   echo "工作目录: $(pwd)"
+                   
+                   # 显示日志文件的最后几行
+                   if [ -f "$LOG_FILE" ]; then
+                     echo "最近日志内容:"
+                     tail -n 10 "$LOG_FILE" 2>/dev/null | grep -E "(训练|episode|奖励|完成|进度|错误)" || tail -n 5 "$LOG_FILE"
+                   else
+                     echo "日志文件尚未生成"
+                   fi
+                  
+                  # 检查是否有checkpoint文件生成
+                  echo "检查checkpoint文件:"
+                  find . -name "*.pt" -type f -newer "$LOG_FILE" 2>/dev/null | head -5 || echo "暂无新的checkpoint文件"
+                  
+                  # 显示当前目录大小（可选）
+                  echo "当前目录使用情况:"
+                  du -sh . 2>/dev/null || echo "无法获取目录大小"
+                  
+                  echo "====================================="
+                  sleep 120  # 每2分钟检查一次
                 done
                 
                 # 等待训练完成
@@ -161,5 +184,6 @@ jobs:
             echo "=========================="
             
             echo "完整训练和评估流程已完成！"
-            echo "项目目录：$PROJECT_DIR"
+            echo "项目路径：$PROJECT_DIR"
+            echo "工作目录：$(pwd)"
           EOF
