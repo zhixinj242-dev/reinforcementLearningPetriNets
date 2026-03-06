@@ -102,7 +102,7 @@ class JunctionPetriNetEnv(gym.Env):
                  max_num_tokens: int = 1, max_num_cars_per_lane: int = 50,
                  lanes: [LanePetriNetTuple] = None, success_action_reward: float = 5.0,
                  success_car_drive_reward: float = 5.0, max_steps: int = 1000,
-                 transitions_to_obs: bool = True, places_to_obs: bool = False, log_manager=None) -> None:
+                 transitions_to_obs: bool = True, places_to_obs: bool = False, log_manager=None, reward_logger=None) -> None:
         """
         【初始化】：创建世界。
         
@@ -124,6 +124,12 @@ class JunctionPetriNetEnv(gym.Env):
         self.transitions_to_obs = transitions_to_obs
         self.places_to_obs = places_to_obs
         self.log_manager = log_manager
+        self.reward_logger = reward_logger
+        
+        # Episode统计
+        self.current_episode = 0
+        self.episode_reward = 0
+        self.episode_violations = 0
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -216,6 +222,15 @@ class JunctionPetriNetEnv(gym.Env):
         terminated = self._terminated()
         truncated = False
         info = self._info(success, cars_driven, waiting_times) # 额外的信息包，方便调试
+        
+        # 4.1 记录奖励到RewardLogger
+        if self.reward_logger:
+            self.reward_logger.log_step(self.steps, reward, info)
+        
+        # 累计episode奖励
+        self.episode_reward += reward
+        if not success:
+            self.episode_violations += 1
 
         # 记录环境接受情况、合法动作等信息
         # 使用previous_obs（动作前的状态）而不是observation（动作后的状态）
@@ -284,12 +299,26 @@ class JunctionPetriNetEnv(gym.Env):
 
     def reset(self, seed: int = None) -> tuple:
         """重置环境，回到最初的状态"""
+        # 如果不是第一次重置，记录上一个episode的信息
+        if self.steps > 0 and self.reward_logger:
+            self.reward_logger.log_episode(
+                episode=self.current_episode,
+                total_reward=self.episode_reward,
+                length=self.steps,
+                violations=self.episode_violations
+            )
+        
         super().reset(seed=seed)
 
         self.net = self._net_backup.copy()
         for lane in self.lanes:
             lane.reset()
         self.steps = 0
+        
+        # 重置episode统计
+        self.current_episode += 1
+        self.episode_reward = 0
+        self.episode_violations = 0
 
         obs = self._get_obs()
         info = {}

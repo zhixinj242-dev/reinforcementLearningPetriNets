@@ -2,9 +2,12 @@ import os
 import time
 import json
 
+from utils.optimized_violation_logger import OptimizedViolationLogger
+
 class LogManager:
     """
     日志管理模块，统一CDQN和DQN的日志输出格式
+    集成OptimizedViolationLogger，只记录违规动作
     """
     
     def __init__(self, algorithm_type, reward_params, log_dir="detailed_logs"):
@@ -30,6 +33,14 @@ class LogManager:
         
         # 打开日志文件
         self.log_file = open(self.log_file_name, "w", encoding="utf-8")
+        
+        # 初始化优化的违规日志记录器
+        self.violation_logger = OptimizedViolationLogger(
+            log_dir=log_dir,
+            algorithm_type=algorithm_type,
+            reward_params=reward_params
+        )
+        # print(f"[LogManager] 违规日志已初始化")  # 减少输出
         
         # 写入日志文件头
         self.write_header()
@@ -72,25 +83,33 @@ class LogManager:
     def log_step(self, step, info):
         """
         记录每一步的详细信息
+        使用OptimizedViolationLogger只记录违规动作
         
         Args:
             step: 当前步数
             info: 包含详细信息的字典
         """
-        # 转换NumPy数组为Python列表，以便JSON序列化
-        converted_info = self._convert_numpy_to_list(info)
+        # 使用OptimizedViolationLogger记录违规动作
+        self.violation_logger.log_step(step, info)
         
-        log_entry = {
-            "step": step,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-            "algorithm_type": self.algorithm_type,
-            "info": converted_info
-        }
-        
-        # 写入JSON格式的日志条目
-        self.log_file.write(json.dumps(log_entry, ensure_ascii=False))
-        self.log_file.write("\n")
-        self.log_file.flush()
+        # 只有在环境不接受动作时才记录到主日志文件
+        environment_acceptance = info.get("environment_acceptance", True)
+        if environment_acceptance is False:
+            # 转换NumPy数组为Python列表，以便JSON序列化
+            converted_info = self._convert_numpy_to_list(info)
+            
+            log_entry = {
+                "step": step,
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                "algorithm_type": self.algorithm_type,
+                "info": converted_info,
+                "type": "violation"
+            }
+            
+            # 写入JSON格式的日志条目
+            self.log_file.write(json.dumps(log_entry, ensure_ascii=False))
+            self.log_file.write("\n")
+            self.log_file.flush()
     
     def update_step(self, step, info):
         """
@@ -118,14 +137,24 @@ class LogManager:
         self.log_file.write("\n")
         self.log_file.flush()
     
+    def reset_episode(self):
+        """
+        重置episode统计
+        """
+        self.violation_logger.reset_episode()
+    
     def close(self):
         """
         关闭日志文件
         """
+        # 关闭OptimizedViolationLogger
+        self.violation_logger.close()
+        
         if not self.log_file.closed:
             # 写入日志文件尾
             footer = {
-                "end_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                "end_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                "violation_stats": self.violation_logger.get_stats()
             }
             self.log_file.write("\n# LOG FOOTER\n")
             self.log_file.write(json.dumps(footer, indent=2, ensure_ascii=False))

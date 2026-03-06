@@ -6,6 +6,22 @@
 """
 import os
 import torch
+
+# 修复Gym兼容性问题
+import sys
+try:
+    import gym
+    # 如果gym版本过低，替换为gymnasium
+    if hasattr(gym, '__version__') and gym.__version__.startswith('0.'):
+        import gymnasium
+        sys.modules['gym'] = gymnasium
+        print("已将gym替换为gymnasium以解决兼容性问题")
+except ImportError:
+    # 如果gym不存在，使用gymnasium
+    import gymnasium as gym
+    sys.modules['gym'] = gym
+    print("使用gymnasium作为gym的替代")
+
 from skrl.agents.torch.dqn import DQN_DEFAULT_CONFIG
 from skrl.envs.torch import wrap_env
 import pandas as pd
@@ -30,6 +46,85 @@ params = [
 
 df = pd.DataFrame(columns=['model_type', 's', 'c', 'w', 'mw', 't', 'min_t_frame', 'avg_t_frame', 'max_t_frame', 'min_waiting_time',
                            'avg_waiting_time', 'max_waiting_time', 'min_c_broken', 'avg_c_broken', 'max_c_broken'])
+
+
+def direct_model_evaluation(model_path, model_type, render_mode, iterations):
+    """直接评估指定的模型
+    
+    Args:
+        model_path: 模型文件路径
+        model_type: "cdqn" 或 "dqn"
+        render_mode: 渲染模式
+        iterations: 评估轮数
+    """
+    if not os.path.isfile(model_path):
+        print(f"[sim] 模型文件不存在: {model_path}")
+        return False
+
+    env = JunctionPetriNetEnv(render_mode=render_mode, reward_function=base_reward,
+                              net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO), transitions_to_obs=True, places_to_obs=False)
+    env.reset()
+    env = wrap_env(env, wrapper="gymnasium")
+    
+    # 根据模型类型创建对应的 agent
+    constrained = (model_type == "cdqn")
+    agent = get_dqn_model(env, memory=None, cfg=DQN_DEFAULT_CONFIG.copy(), constrained=constrained)
+
+    agent.load(model_path)
+    agent.set_mode("eval")
+    agent.set_running_mode("eval")
+
+    total_timesteps = []
+    constraints_broken = []
+    average_waiting_times = []
+    min_waiting_times = []
+    max_waiting_times = []
+    
+    print(f"[sim] 开始评估 {model_type.upper()} 模型，共 {iterations} 轮...")
+    
+    for i in range(iterations):
+        obs, _ = env.reset()
+        c = 0
+        all_waiting_times = []
+        t = 0
+        terminated = False
+        while not terminated:
+            action, _, _ = agent.act(obs, timestep=0, timesteps=0)
+            obs, reward, terminated, _, inf = env.step(action)
+            if not inf["success"]:
+                c = c + 1
+            all_waiting_times.extend(inf["waiting_times"])
+            t = t + 1
+        
+        # 收集未通过车辆的等待时间
+        for lane in env.unwrapped.lanes:
+            for car in lane.cars:
+                all_waiting_times.append(car.waiting_time)
+        
+        total_timesteps.append(t)
+        constraints_broken.append(c)
+        
+        if all_waiting_times:
+            average_waiting_times.append(sum(all_waiting_times) / len(all_waiting_times))
+            min_waiting_times.append(min(all_waiting_times))
+            max_waiting_times.append(max(all_waiting_times))
+        else:
+            average_waiting_times.append(0)
+            min_waiting_times.append(0)
+            max_waiting_times.append(0)
+        
+        if (i + 1) % 50 == 0:
+            print(f"[sim] 已完成 {i + 1}/{iterations} 轮评估")
+    
+    # 输出统计结果
+    print(f"\n[sim] {model_type.upper()} 模型评估结果:")
+    print(f"平均步数: {sum(total_timesteps) / len(total_timesteps):.2f}")
+    print(f"最小步数: {min(total_timesteps)}")
+    print(f"最大步数: {max(total_timesteps)}")
+    print(f"平均违规次数: {sum(constraints_broken) / len(constraints_broken):.2f}")
+    print(f"平均等待时间: {sum(average_waiting_times) / len(average_waiting_times):.2f}")
+    
+    return True
 
 
 def main(p, model_type="cdqn", render_mode=None, iterations=200):
@@ -146,10 +241,23 @@ if __name__ == "__main__":
     parser.add_argument("--iterations", type=int, default=200,
                         help="每组模型评估的 episode 数（默认 200）")
     parser.add_argument("--render", action="store_true", help="开启渲染（默认不渲染以加速批量评估）")
+    parser.add_argument("--path", type=str, default=None,
+                        help="直接指定要评估的模型路径（跳过参数组合评估）")
     args = parser.parse_args()
     render_mode = "human" if args.render else None
 
-    if args.model_type == "both":
+    # 如果指定了--path参数，直接评估该模型
+    if args.path:
+        print(f"\n{'='*60}\n正在评估指定模型: {args.path}\n{'='*60}")
+        # 从路径推断模型类型
+        if "cdqn" in args.path.lower():
+            model_type = "cdqn"
+        else:
+            model_type = "dqn"
+        
+        # 直接评估指定模型
+        direct_model_evaluation(args.path, model_type, render_mode, args.iterations)
+    elif args.model_type == "both":
         for model_type in ["cdqn", "dqn"]:
             print(f"\n{'='*60}\n正在评估 {model_type.upper()} 最优模型 (*_best.pt)\n{'='*60}")
             for p in params:

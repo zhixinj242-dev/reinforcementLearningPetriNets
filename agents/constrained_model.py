@@ -59,14 +59,15 @@ def c_deterministic_model(observation_space: Optional[Union[int, Tuple[int], gym
                                             output_activation=metadata["output_activation"],
                                             output_scale=metadata["output_scale"])
             
-            # 初始化日志文件
-            import os
-            os.makedirs("debug_logs", exist_ok=True)
-            self.log_file = open("debug_logs/model_debug.log", "a", encoding="utf-8")
+            # 禁用调试日志以减少文件大小
+            # import os
+            # os.makedirs("debug_logs", exist_ok=True)
+            # self.log_file = open("debug_logs/model_debug.log", "a", encoding="utf-8")
+            self.log_file = None  # 禁用日志
 
         def __del__(self):
-            # 关闭日志文件
-            if hasattr(self, "log_file") and not self.log_file.closed:
+            # 关闭日志文件（已禁用）
+            if hasattr(self, "log_file") and self.log_file is not None and not self.log_file.closed:
                 self.log_file.close()
 
         def compute(self, inputs, role=""):
@@ -98,8 +99,8 @@ def c_deterministic_model(observation_space: Optional[Union[int, Tuple[int], gym
             # 5. 非法动作强制设为0
             final_output = final_output * mask
             
-            # 添加调试信息：记录Q值分布和掩码情况到文件
-            if role == "debug":
+            # 添加调试信息：记录Q值分布和掩码情况到文件（已禁用）
+            if role == "debug" and self.log_file is not None:
                 import time
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                 self.log_file.write(f"[{timestamp}] Q值范围: min={torch.min(output).item()}, max={torch.max(output).item()}, mean={torch.mean(output).item()}\n")

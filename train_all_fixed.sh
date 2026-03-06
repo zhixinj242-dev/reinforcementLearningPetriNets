@@ -42,7 +42,7 @@ for constrained in "${algorithms[@]}"; do
       --m-waiting-time "$waiting_time" \
       --m-max-waiting-time "$max_waiting_time" \
       --m-timestep "$timestep" \
-      --timesteps 10000
+      --timesteps 1000
     
     param_idx=$((param_idx + 1))
   done

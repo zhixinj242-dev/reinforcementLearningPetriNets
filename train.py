@@ -7,6 +7,21 @@
 import argparse
 import itertools
 
+# 修复Gym兼容性问题
+import sys
+try:
+    import gym
+    # 如果gym版本过低，替换为gymnasium
+    if hasattr(gym, '__version__') and gym.__version__.startswith('0.'):
+        import gymnasium
+        sys.modules['gym'] = gymnasium
+        print("已将gym替换为gymnasium以解决兼容性问题")
+except ImportError:
+    # 如果gym不存在，使用gymnasium
+    import gymnasium as gym
+    sys.modules['gym'] = gym
+    print("使用gymnasium作为gym的替代")
+
 from skrl.agents.torch.dqn import DQN_DEFAULT_CONFIG
 from skrl.envs.torch import wrap_env
 from skrl.memories.torch import RandomMemory
@@ -17,6 +32,7 @@ from environment import JunctionPetriNetEnv
 import rewards
 from utils.petri_net import get_petri_net, Parser
 from utils.log_manager import LogManager
+from utils.reward_logger import RewardLogger
 
 
 def generate_parsed_arguments():
@@ -32,10 +48,10 @@ def generate_parsed_arguments():
     
     # --- 【超参数】---
     parser.add_argument("-b", "--batch-size", type=int, default=64)
-    parser.add_argument("-exp-t", "--exploration-timesteps", type=int, default=2000)
+    parser.add_argument("-exp-t", "--exploration-timesteps", type=int, default=5000)
     parser.add_argument("-exp-e", "--exploration-final-epsilon", type=float, default=0.04)
-    parser.add_argument("-learn-s", "--learning-starts", type=int, default=500)
-    parser.add_argument("-rand-t", "--random-timesteps", type=int, default=500)
+    parser.add_argument("-learn-s", "--learning-starts", type=int, default=1000)
+    parser.add_argument("-rand-t", "--random-timesteps", type=int, default=1000)
 
     # --- 奖励函数参数 ---
     parser.add_argument("--reward-function", type=str, default="discounted_reward")
@@ -51,6 +67,9 @@ def generate_parsed_arguments():
 
     # --- 多进程标识 ---
     parser.add_argument("--process-id", type=int, default=None)
+    
+    # --- 训练步数 ---
+    parser.add_argument("--timesteps", type=int, default=10000, help="训练步数")
 
     return parser.parse_args()
 
@@ -83,13 +102,23 @@ def main():
     # 3. 创建LogManager实例
     algorithm_type = "CDQN" if parser.constrained else "DQN"
     log_manager = LogManager(algorithm_type=algorithm_type, reward_params=reward_params)
-    print(f"{pid_prefix} 日志文件: {log_manager.get_log_file_name()}")
+    # print(f"{pid_prefix} 日志文件: {log_manager.get_log_file_name()}")  # 减少输出
+    
+    # 3.1 创建RewardLogger实例
+    reward_logger = RewardLogger(
+        log_dir="reward_logs", 
+        algorithm_type=algorithm_type, 
+        reward_params=reward_params,
+        window_size=100
+    )
+    # print(f"{pid_prefix} 奖励日志已初始化")  # 减少输出
 
     # 4. 初始化环境
     env = JunctionPetriNetEnv(
         reward_function=reward_fn,
         net=get_petri_net('data/traffic-scenario.PNPRO', type=Parser.PNPRO),
-        log_manager=log_manager
+        log_manager=log_manager,
+        reward_logger=reward_logger
     )
     # 添加算法类型标识
     env.algorithm_type = algorithm_type
@@ -123,7 +152,7 @@ def main():
     cfg["random_timesteps"] = parser.random_timesteps
     cfg["learning_rate"] = 1e-4  # 添加学习率设置
     
-    cfg["experiment"]["checkpoint_interval"] = 500
+    cfg["experiment"]["checkpoint_interval"] = 100  # 减少到100步，更频繁保存
     cfg["experiment"]["write_interval"] = 100
     
     # 生成实验名称
@@ -163,7 +192,7 @@ def main():
     
     # 【关键修复】：使用 skrl 的 SequentialTrainer，但设置 checkpoint 保存路径
     cfg_trainer = {
-        "timesteps": 3000,
+        "timesteps": parser.timesteps,
         "headless": True
     }
     
@@ -171,11 +200,14 @@ def main():
     
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=agent)
     
-    # 【关键修复】：设置 checkpoint 保存路径
+    # 【关键修复】：强制启用 skrl 的 checkpoint 保存
+    cfg["experiment"]["store_checkpoints"] = True
+    cfg["experiment"]["checkpoints_format"] = "pt"
     checkpoint_dir = os.path.join("lido-run-events", exp_name, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
     
-    # 【关键修复】：重写 trainer 的训练方法以保存 checkpoint
+    # 【关键修复】：设置 skrl 的 checkpoint 保存路径
+    cfg["experiment"]["checkpoints_directory"] = checkpoint_dir
     original_train = trainer.train
     
     def custom_train():
@@ -260,7 +292,8 @@ def main():
             # 只保留带步数的 checkpoint（由 skrl checkpoint_interval 保存），不再保存末尾的 .pt
             if parser.process_id is not None:
                 print(f"{pid_prefix} ✓ DONE", flush=True)
-            print(f"{pid_prefix} 训练完成，日志已保存到: {log_manager.get_log_file_name()}")
+            print(f"{pid_prefix} 训练完成")
+            # print(f"{pid_prefix} 奖励日志已保存到: {reward_logger.base_filename}")  # 减少输出
         except KeyboardInterrupt:
             if parser.process_id is not None:
                 print(f"{pid_prefix} ⊗ STOPPED", flush=True)
@@ -269,9 +302,11 @@ def main():
             import traceback
             traceback.print_exc()
         finally:
-            # 确保关闭日志文件
+            # 关闭日志记录器
             if log_manager:
                 log_manager.close()
+            if reward_logger:
+                reward_logger.close()
     if parser.eval:
         trainer.eval()
 
