@@ -46,8 +46,22 @@ jobs:
             # 使用双引号包围路径，确保空格被正确处理
             # 额外保险：使用变量存储路径，避免多次输入
             PROJECT_DIR="/autodl-tmp/petri RL"
+            
+            # 显示初始目录信息
+            echo "初始工作目录：$(pwd)"
+            echo "初始目录内容："
+            ls -la /autodl-tmp/ 2>/dev/null || echo "无法访问/autodl-tmp/目录"
+            
+            # 检查目录是否存在，不存在则创建
+            if [ ! -d "$PROJECT_DIR" ]; then
+                echo "项目目录不存在，创建中: $PROJECT_DIR"
+                mkdir -p "$PROJECT_DIR"
+            else
+                echo "项目目录已存在: $PROJECT_DIR"
+            fi
+            
             cd "$PROJECT_DIR"
-            echo "当前工作目录：$(pwd)"
+            echo "切换后工作目录：$(pwd)"
             echo "项目目录：$PROJECT_DIR"
             echo "开始拉取最新代码..."
             git pull origin cdqn_optimize || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"
@@ -59,12 +73,18 @@ jobs:
             # 第一阶段：运行批量训练
             echo "===== 第一阶段：开始批量训练 ====="
             
+            # 显示当前目录内容
+            echo "当前目录内容："
+            ls -la
+            
             # 直接查找train_all.sh文件
             TRAIN_SCRIPT=$(find . -name "train_all.sh" -type f | head -1)
-            echo "找到训练脚本: $TRAIN_SCRIPT"
+            echo "查找结果：$TRAIN_SCRIPT"
             
             if [ -n "$TRAIN_SCRIPT" ]; then
-                echo "开始执行训练脚本..."
+                echo "找到训练脚本: $TRAIN_SCRIPT"
+                echo "脚本详细信息："
+                ls -la "$TRAIN_SCRIPT"
                 chmod +x "$TRAIN_SCRIPT"
                 pkill -f train_all.sh || echo "无旧训练进程，继续"
                 
@@ -93,17 +113,17 @@ jobs:
                 while kill -0 $TRAIN_PID 2>/dev/null; do
                   CHECK_COUNT=$((CHECK_COUNT + 1))
                   echo "===== 检查 #$CHECK_COUNT [$(date +%Y-%m-%d\ %H:%M:%S)] ====="
-                   echo "训练进程PID: $TRAIN_PID"
-                   echo "项目路径: $PROJECT_DIR"
-                   echo "工作目录: $(pwd)"
-                   
-                   # 显示日志文件的最后几行
-                   if [ -f "$LOG_FILE" ]; then
-                     echo "最近日志内容:"
-                     tail -n 10 "$LOG_FILE" 2>/dev/null | grep -E "(训练|episode|奖励|完成|进度|错误)" || tail -n 5 "$LOG_FILE"
-                   else
-                     echo "日志文件尚未生成"
-                   fi
+                  echo "训练进程PID: $TRAIN_PID"
+                  echo "项目路径: $PROJECT_DIR"
+                  echo "工作目录: $(pwd)"
+                  
+                  # 显示日志文件的最后几行
+                  if [ -f "$LOG_FILE" ]; then
+                    echo "最近日志内容:"
+                    tail -n 10 "$LOG_FILE" 2>/dev/null | grep -E "(训练|episode|奖励|完成|进度|错误)" || tail -n 5 "$LOG_FILE"
+                  else
+                    echo "日志文件尚未生成"
+                  fi
                   
                   # 检查是否有checkpoint文件生成
                   echo "检查checkpoint文件:"
@@ -125,6 +145,8 @@ jobs:
                 echo "完整日志保存在: $LOG_FILE"
             else
                 echo "错误：无法找到train_all.sh文件"
+                echo "尝试查找所有可能的训练脚本："
+                find /autodl-tmp -name "train_all.sh" -type f 2>/dev/null
                 exit 1
             fi
             
