@@ -58,7 +58,25 @@ jobs:
             
             # 第一阶段：运行批量训练
             echo "===== 第一阶段：开始批量训练 ====="
-            chmod +x train_all.sh
+            
+            # 检查文件是否存在
+            echo "检查当前目录文件:"
+            ls -la
+            
+            # 查找train_all.sh文件
+            if [ -f "train_all.sh" ]; then
+                echo "找到train_all.sh，开始执行..."
+                chmod +x train_all.sh
+            elif [ -f "scripts/train_all.sh" ]; then
+                echo "在scripts目录找到train_all.sh，开始执行..."
+                chmod +x scripts/train_all.sh
+            else
+                echo "未找到train_all.sh文件，列出所有目录:"
+                find . -name "train_all.sh" -type f 2>/dev/null
+                echo "错误：无法找到train_all.sh文件"
+                exit 1
+            fi
+            
             pkill -f train_all.sh || echo "无旧训练进程，继续"
             
             # 运行训练并记录时间
@@ -69,7 +87,11 @@ jobs:
             echo "训练日志将保存到: $LOG_FILE"
             
             # 后台运行训练并记录日志
-            nohup bash train_all.sh > "$LOG_FILE" 2>&1 &
+            if [ -f "train_all.sh" ]; then
+                nohup bash train_all.sh > "$LOG_FILE" 2>&1 &
+            else
+                nohup bash scripts/train_all.sh > "$LOG_FILE" 2>&1 &
+            fi
             TRAIN_PID=$!
             echo "训练进程PID: $TRAIN_PID"
             
@@ -90,18 +112,64 @@ jobs:
             
             # 第二阶段：运行基线对比
             echo "===== 第二阶段：开始基线对比 ====="
-            chmod +x baseline_all.sh
-            bash baseline_all.sh
+            
+            # 查找baseline_all.sh文件
+            if [ -f "baseline_all.sh" ]; then
+                echo "找到baseline_all.sh，开始执行..."
+                chmod +x baseline_all.sh
+                bash baseline_all.sh
+            elif [ -f "scripts/baseline_all.sh" ]; then
+                echo "在scripts目录找到baseline_all.sh，开始执行..."
+                chmod +x scripts/baseline_all.sh
+                bash scripts/baseline_all.sh
+            else
+                echo "未找到baseline_all.sh文件，跳过基线对比"
+                find . -name "baseline_all.sh" -type f 2>/dev/null
+            fi
             echo "基线对比完成"
             
             # 第三阶段：运行模拟
             echo "===== 第三阶段：开始模拟评估 ====="
-            python simulation.py
+            
+            # 查找simulation.py文件
+            if [ -f "simulation.py" ]; then
+                echo "找到simulation.py，开始执行..."
+                python simulation.py
+            elif [ -f "scripts/simulation.py" ]; then
+                echo "在scripts目录找到simulation.py，开始执行..."
+                python scripts/simulation.py
+            else
+                echo "未找到simulation.py文件，跳过模拟评估"
+                find . -name "simulation.py" -type f 2>/dev/null
+            fi
             echo "模拟评估完成"
             
             # 第四阶段：合并结果
             echo "===== 第四阶段：合并结果 ====="
-            python -c "from utils.result_comparison import merge_simulation_with_baseline; merge_simulation_with_baseline()"
+            
+            # 设置Python路径
+            export PYTHONPATH="$(pwd):$PYTHONPATH"
+            echo "Python路径: $PYTHONPATH"
+            
+            # 显示当前目录结构
+            echo "当前目录结构:"
+            ls -la
+            echo "子目录:"
+            find . -maxdepth 2 -type d | sort
+            
+            # 查找utils模块
+            if [ -d "utils" ]; then
+                echo "找到utils目录，开始合并结果..."
+                python -c "from utils.result_comparison import merge_simulation_with_baseline; merge_simulation_with_baseline()"
+            elif [ -d "src/utils" ]; then
+                echo "在src目录找到utils，开始合并结果..."
+                python -c "from src.utils.result_comparison import merge_simulation_with_baseline; merge_simulation_with_baseline()"
+            else
+                echo "未找到utils模块，尝试直接执行..."
+                find . -name "result_comparison.py" -type f 2>/dev/null
+                # 尝试直接执行
+                python -c "import sys; sys.path.append('.'); from utils.result_comparison import merge_simulation_with_baseline; merge_simulation_with_baseline()" 2>/dev/null || echo "无法执行结果合并"
+            fi
             echo "结果合并完成"
             
             # 显示生成的文件
