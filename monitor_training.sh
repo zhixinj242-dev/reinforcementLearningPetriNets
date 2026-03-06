@@ -1,43 +1,63 @@
 #!/bin/bash
+# 【文件角色】：Shell脚本，用于监控远程训练进度。
+# 使用方法：./monitor_training.sh
 
-# 监控所有训练日志的进度
+echo "===== 远程训练监控工具 ====="
+echo
 
-LOG_DIR="train_logs"
+# 设置服务器连接信息（请根据实际情况修改）
+SERVER_IP="your_server_ip"
+SERVER_PORT="22"
+SERVER_USER="your_username"
+PROJECT_PATH="/autodl-tmp/petri RL"
 
-if [ ! -d "$LOG_DIR" ]; then
-    echo "日志目录 $LOG_DIR 不存在"
+# 检查是否已配置服务器信息
+if [ "$SERVER_IP" = "your_server_ip" ]; then
+    echo "请先编辑此文件，设置正确的服务器连接信息"
+    echo "需要修改的变量："
+    echo "  SERVER_IP - 服务器IP地址"
+    echo "  SERVER_PORT - SSH端口（默认22）"
+    echo "  SERVER_USER - 服务器用户名"
+    echo "  PROJECT_PATH - 项目路径"
     exit 1
 fi
 
-while true; do
-    clear
-    echo "======================================================================"
-    echo "训练进度监控 - $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "======================================================================"
-    echo ""
-    
-    for logfile in "$LOG_DIR"/*.log; do
-        if [ -f "$logfile" ]; then
-            filename=$(basename "$logfile")
-            # 提取最后一行包含进度条的内容
-            progress=$(tail -n 20 "$logfile" | grep -oP '\d+%\|[^|]+\|\s*\d+/\d+' | tail -1)
-            
-            if [ -z "$progress" ]; then
-                # 如果没有进度条，检查是否完成
-                if grep -q "100%" "$logfile" 2>/dev/null; then
-                    echo "[$filename] ✓ 完成"
-                elif grep -q "Error\|error\|Exception" "$logfile" 2>/dev/null; then
-                    echo "[$filename] ✗ 错误"
-                else
-                    echo "[$filename] ... 启动中"
-                fi
-            else
-                echo "[$filename] $progress"
-            fi
-        fi
-    done
-    
-    echo ""
-    echo "按 Ctrl+C 退出监控"
-    sleep 2
-done
+echo "服务器信息："
+echo "  IP地址: $SERVER_IP"
+echo "  端口: $SERVER_PORT"
+echo "  用户名: $SERVER_USER"
+echo "  项目路径: $PROJECT_PATH"
+echo
+
+# 选择监控模式
+echo "请选择监控模式："
+echo "1. 单次监控"
+echo "2. 连续监控（每60秒刷新）"
+echo "3. 连续监控（自定义间隔）"
+read -p "请输入选择 (1-3): " choice
+
+case $choice in
+    1)
+        echo
+        echo "执行单次监控..."
+        python monitor_remote_training.py --server-ip $SERVER_IP --server-port $SERVER_PORT --server-user $SERVER_USER --project-path "$PROJECT_PATH"
+        ;;
+    2)
+        echo
+        echo "开始连续监控（每60秒刷新）..."
+        python monitor_remote_training.py --server-ip $SERVER_IP --server-port $SERVER_PORT --server-user $SERVER_USER --project-path "$PROJECT_PATH" --continuous
+        ;;
+    3)
+        echo
+        read -p "请输入刷新间隔（秒）: " interval
+        echo "开始连续监控（每$interval秒刷新）..."
+        python monitor_remote_training.py --server-ip $SERVER_IP --server-port $SERVER_PORT --server-user $SERVER_USER --project-path "$PROJECT_PATH" --continuous --interval $interval
+        ;;
+    *)
+        echo "无效选择，退出"
+        exit 1
+        ;;
+esac
+
+echo
+echo "监控完成"

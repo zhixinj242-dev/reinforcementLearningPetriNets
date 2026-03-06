@@ -1,0 +1,114 @@
+name: 完整训练和评估流程
+
+on:
+  push:
+    branches: [cdqn_optimize]  # 触发分支
+
+permissions:
+  contents: read
+
+jobs:
+  complete-training-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取最新代码
+        uses: actions/checkout@v4
+
+      - name: 配置 SSH 连接云服务器
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 验证 Secrets 配置
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "===== Secrets 位数验证 ====="
+          echo "SERVER_USER 长度：${#SERVER_USER}"
+          echo "SERVER_IP 长度：${#SERVER_IP}"
+          echo "SERVER_PORT 长度：${#SERVER_PORT}"
+          echo "SSH_PRIVATE_KEY 长度（粗略）：${#SSH_PRIVATE_KEY}"
+          echo "============================"
+
+      - name: 运行完整训练和评估流程
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PROJECT_PATH: "/autodl-tmp/petri RL"  # 项目路径
+        run: |
+          echo "当前连接参数：$SERVER_USER@$SERVER_IP:$SERVER_PORT"
+          # 使用转义和引号确保路径正确处理空格
+          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT $SERVER_USER@$SERVER_IP << 'EOF'
+            # 使用双引号包围路径，确保空格被正确处理
+            # 额外保险：使用变量存储路径，避免多次输入
+            PROJECT_DIR="/autodl-tmp/petri RL"
+            cd "$PROJECT_DIR"
+            echo "当前工作目录：$(pwd)"
+            echo "项目目录：$PROJECT_DIR"
+            echo "开始拉取最新代码..."
+            git pull origin cdqn_optimize || echo "代码拉取失败（可能本地有未提交修改），继续执行训练"
+            
+            # 设置Python路径
+            export PYTHONPATH="$(pwd):$PYTHONPATH"
+            echo "Python 路径配置完成：$PYTHONPATH"
+            
+            # 第一阶段：运行批量训练
+            echo "===== 第一阶段：开始批量训练 ====="
+            chmod +x train_all.sh
+            pkill -f train_all.sh || echo "无旧训练进程，继续"
+            
+            # 运行训练并记录时间
+            start_time=$(date +%s)
+            
+            # 创建专门的日志文件
+            LOG_FILE="training_$(date +%Y%m%d_%H%M%S).log"
+            echo "训练日志将保存到: $LOG_FILE"
+            
+            # 后台运行训练并记录日志
+            nohup bash train_all.sh > "$LOG_FILE" 2>&1 &
+            TRAIN_PID=$!
+            echo "训练进程PID: $TRAIN_PID"
+            
+            # 定期检查训练进度
+            echo "开始监控训练进度..."
+            while kill -0 $TRAIN_PID 2>/dev/null; do
+              echo "[$(date +%Y-%m-%d\ %H:%M:%S)] 训练进行中... (PID: $TRAIN_PID)"
+              tail -n 5 "$LOG_FILE" 2>/dev/null || echo "日志文件尚未生成"
+              sleep 60  # 每分钟检查一次
+            done
+            
+            # 等待训练完成
+            wait $TRAIN_PID
+            end_time=$(date +%s)
+            training_time=$((end_time - start_time))
+            echo "训练完成，耗时: $training_time 秒"
+            echo "完整日志保存在: $LOG_FILE"
+            
+            # 第二阶段：运行基线对比
+            echo "===== 第二阶段：开始基线对比 ====="
+            chmod +x baseline_all.sh
+            bash baseline_all.sh
+            echo "基线对比完成"
+            
+            # 第三阶段：运行模拟
+            echo "===== 第三阶段：开始模拟评估 ====="
+            python simulation.py
+            echo "模拟评估完成"
+            
+            # 第四阶段：合并结果
+            echo "===== 第四阶段：合并结果 ====="
+            python -c "from utils.result_comparison import merge_simulation_with_baseline; merge_simulation_with_baseline()"
+            echo "结果合并完成"
+            
+            # 显示生成的文件
+            echo "===== 生成的结果文件 ====="
+            ls -la *.csv
+            echo "=========================="
+            
+            echo "完整训练和评估流程已完成！"
+            echo "项目目录：$PROJECT_DIR"
+          EOF
